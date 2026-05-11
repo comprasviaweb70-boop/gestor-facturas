@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import Anthropic from '@anthropic-ai/sdk';
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
@@ -10,13 +10,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Falta el contenido del XML' }, { status: 400 });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
-      return NextResponse.json({ error: 'API Key de Gemini no configurada' }, { status: 500 });
+      return NextResponse.json({ error: 'API Key de Anthropic no configurada' }, { status: 500 });
     }
 
-    const ai = new GoogleGenerativeAI(apiKey);
-    const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const anthropic = new Anthropic({ apiKey });
 
     const prompt = `Actúa como un experto en facturación electrónica chilena (DTE). Analiza este XML y extrae exclusivamente los siguientes datos en formato JSON:
 
@@ -42,13 +41,27 @@ Regla crítica:
 - Si el código del proveedor no viene explícito, intenta derivarlo de la descripción o marca 'S/C'. No inventes datos.
 - Para 'impuestosAdicionales', extrae el monto total de impuestos adicionales aplicados a ese ítem. Si no hay, pon 0.
 
-Responde EXCLUSIVAMENTE con el objeto JSON. No agregues texto antes ni después.
-
 XML a analizar:
 ${xmlContent}`;
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
+    const result = await anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 4000,
+      temperature: 0,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: prompt
+            }
+          ],
+        }
+      ],
+    });
+    
+    const text = result.content[0].type === 'text' ? result.content[0].text : '';
     
     // Intentar extraer el JSON del texto
     const jsonMatch = text.match(/\{[\s\S]*\}/);
