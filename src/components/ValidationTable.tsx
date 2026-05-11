@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Link as LinkIcon, Loader2 } from 'lucide-react';
 
-export default function ValidationTable() {
+export default function ValidationTable({ refreshKey = 0 }: { refreshKey?: number }) {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedSkus, setSelectedSkus] = useState<{ [key: string]: string }>({});
@@ -12,7 +12,7 @@ export default function ValidationTable() {
 
   useEffect(() => {
     fetchQueue();
-  }, []);
+  }, [refreshKey]);
 
   const fetchQueue = async () => {
     setLoading(true);

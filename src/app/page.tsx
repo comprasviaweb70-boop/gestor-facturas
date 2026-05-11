@@ -12,9 +12,11 @@ export default function Home() {
   const [extractedData, setExtractedData] = useState<any>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [margin, setMargin] = useState(50); // Margen por defecto del 50%
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const handleDataExtracted = (data: any) => {
     setExtractedData(data);
+    setRefreshKey(prev => prev + 1);
   };
 
   const handleExportExcel = async () => {
@@ -177,7 +179,7 @@ export default function Home() {
         <UploadModule onDataExtracted={handleDataExtracted} />
 
         {/* Validation Table */}
-        <ValidationTable />
+        <ValidationTable refreshKey={refreshKey} />
       </div>
     </main>
   );
