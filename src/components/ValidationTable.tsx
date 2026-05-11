@@ -105,9 +105,11 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
       const data = await res.json();
       
       let foundSku = '';
+      let foundName = '';
       
       if (data.items && data.items.length > 0) {
         foundSku = data.items[0].code;
+        foundName = data.items[0].name;
       } else {
         // Fallback: Intentar por código (SKU) por si acaso el escáner leyó el SKU o Bsale lo tiene ahí
         const resCode = await fetch(`/api/bsale/search?code=${encodeURIComponent(barcode)}`);
@@ -115,12 +117,23 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
         
         if (dataCode.items && dataCode.items.length > 0) {
           foundSku = dataCode.items[0].code;
+          foundName = dataCode.items[0].name;
         }
       }
       
       if (foundSku) {
-        // Actualizar SKU en el estado local
-        handleUpdateItem(id, 'internal_sku', foundSku);
+        // Actualizar SKU y Nombre en el estado local directamente
+        const updatedItems = localItems.map(item => {
+          const itemId = item.id || item.index;
+          if (itemId === id) {
+            return { ...item, internal_sku: foundSku, nombre: foundName || item.nombre };
+          }
+          return item;
+        });
+        setLocalItems(updatedItems);
+        if (onItemsChange) {
+          onItemsChange(updatedItems);
+        }
         
         // Persistencia automática en Supabase si viene del XML
         const item = localItems.find(i => (i.id || i.index) === id);
