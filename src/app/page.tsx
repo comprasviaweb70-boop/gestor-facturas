@@ -4,6 +4,7 @@ import { useState } from 'react';
 import UploadModule from '@/components/UploadModule';
 import ValidationTable from '@/components/ValidationTable';
 import DocumentViewer from '@/components/DocumentViewer';
+import AutoReceptionModule from '@/components/AutoReceptionModule';
 import { supabase } from '@/lib/supabase';
 import ExcelJS from 'exceljs';
 import { FileDown, Loader2 } from 'lucide-react';
@@ -184,6 +185,9 @@ export default function Home() {
 
         {/* Upload Module */}
         <UploadModule onDataExtracted={handleDataExtracted} />
+
+        {/* Auto Reception Module */}
+        <AutoReceptionModule onDataExtracted={handleDataExtracted} />
 
         {/* Validation Table */}
         <ValidationTable 
