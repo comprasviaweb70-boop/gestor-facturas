@@ -231,28 +231,20 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
                 return (
                   <tr key={id} className="bg-white border-b hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-gray-900">
-                      {propItems ? (
-                        <input
-                          type="text"
-                          value={item.nombre || ''}
-                          onChange={(e) => handleUpdateItem(id, 'nombre', e.target.value)}
-                          className="w-full border-none focus:ring-0 text-sm p-0 bg-transparent"
-                        />
-                      ) : (
-                        item.product_name || item.nombre
-                      )}
+                      <input
+                        type="text"
+                        value={item.nombre || item.product_name || ''}
+                        onChange={(e) => handleUpdateItem(id, 'nombre', e.target.value)}
+                        className="w-full border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
+                      />
                     </td>
                     <td className="px-4 py-3">
-                      {propItems ? (
-                        <input
-                          type="text"
-                          value={item.codigo || ''}
-                          onChange={(e) => handleUpdateItem(id, 'codigo', e.target.value)}
-                          className="w-24 border-none focus:ring-0 text-sm p-0 bg-transparent"
-                        />
-                      ) : (
-                        item.supplier_code
-                      )}
+                      <input
+                        type="text"
+                        value={item.codigo || item.supplier_code || ''}
+                        onChange={(e) => handleUpdateItem(id, 'codigo', e.target.value)}
+                        className="w-24 border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
+                      />
                     </td>
                     <td className="px-4 py-3">
                       <input

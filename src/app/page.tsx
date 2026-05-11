@@ -88,7 +88,7 @@ export default function Home() {
         for (const item of extractedData.items) {
           const row = worksheet.getRow(currentRow);
           
-          const sku = equivalences[item.codigo] || 'SIN MATCH';
+          const sku = item.internal_sku || equivalences[item.codigo] || 'SIN MATCH';
           // Usamos precioUnitario que ahora viene explícito del análisis de Claude
           const pcu = (item.precioUnitario || item.precioNeto || 0) + (item.impuestosAdicionales || 0);
           const pvu = pcu * (1 + margin / 100) * 1.19;
