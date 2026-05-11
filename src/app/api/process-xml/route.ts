@@ -15,6 +15,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'API Key de Anthropic no configurada' }, { status: 500 });
     }
 
+    const anthropic = new Anthropic({ apiKey });
+
     const prompt = `Actúa como un experto en facturación electrónica chilena (DTE). Analiza este XML y extrae exclusivamente los siguientes datos en formato JSON:
 
 {
@@ -42,10 +44,8 @@ Regla crítica:
 XML a analizar:
 ${xmlContent}`;
 
-    const anthropic = new Anthropic({ apiKey });
-
     const result = await anthropic.messages.create({
-      model: "claude-3-haiku-20240307", // Cambiamos al Haiku estándar por si el 3.5 no está activo en tu cuenta
+      model: "claude-3-5-haiku-20241022",
       max_tokens: 4000,
       temperature: 0,
       messages: [
@@ -59,7 +59,7 @@ ${xmlContent}`;
           ],
         }
       ],
-    }, { timeout: 10000 }); // Subimos el tiempo de espera a 10 segundos
+    });
     
     const text = result.content[0].type === 'text' ? result.content[0].text : '';
     
