@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
@@ -15,7 +15,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'API Key de Gemini no configurada' }, { status: 500 });
     }
 
-    const ai = new GoogleGenAI({ apiKey });
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' }, { apiVersion: 'v1' });
 
     const prompt = `Actúa como un experto en facturación electrónica chilena (DTE). Analiza este XML y extrae exclusivamente los siguientes datos en formato JSON:
 
@@ -40,11 +41,8 @@ Para 'impuestosAdicionales', extrae el monto total de impuestos adicionales (ILA
 XML a analizar:
 ${xmlContent}`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
-      contents: prompt,
-    });
-    const text = response.text;
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
     
     // Intentar extraer el JSON del texto
     const jsonMatch = text.match(/\{[\s\S]*\}/);
