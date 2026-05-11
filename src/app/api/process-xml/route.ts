@@ -47,7 +47,12 @@ ${xmlContent}`;
       messages: [
         {
           role: "user",
-          content: prompt,
+          content: [
+            {
+              type: "text",
+              text: prompt
+            }
+          ],
         }
       ],
     });
@@ -130,7 +135,7 @@ ${xmlContent}`;
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Error processing XML with Gemini:', error);
-    return NextResponse.json({ error: 'Error al procesar el XML con Gemini' }, { status: 500 });
+    console.error('Error processing document with Claude:', error);
+    return NextResponse.json({ error: 'Error al procesar el documento con Claude' }, { status: 500 });
   }
 }
