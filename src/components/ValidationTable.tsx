@@ -18,8 +18,13 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
 
   useEffect(() => {
     if (propItems && propItems.length > 0) {
-      setLocalItems(propItems);
-      searchEquivalences(propItems);
+      const propCodes = propItems.map(i => i.codigo).join(',');
+      const localCodes = localItems.map(i => i.codigo).join(',');
+      
+      if (propCodes !== localCodes || localItems.length === 0) {
+        setLocalItems(propItems);
+        searchEquivalences(propItems);
+      }
     } else if (!propItems) {
       fetchQueue();
     }
