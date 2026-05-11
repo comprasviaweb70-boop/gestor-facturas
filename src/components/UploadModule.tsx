@@ -97,7 +97,7 @@ export default function UploadModule({ onDataExtracted }: UploadModuleProps) {
         {isLoading ? (
           <div className="flex flex-col items-center space-y-4">
             <Loader2 className="h-10 w-10 animate-spin text-action" />
-            <p className="text-sm font-medium text-gray-600">Gemini procesando XML...</p>
+            <p className="text-sm font-medium text-gray-600">Claude procesando XML...</p>
           </div>
         ) : (
           <div className="flex flex-col items-center space-y-3">
