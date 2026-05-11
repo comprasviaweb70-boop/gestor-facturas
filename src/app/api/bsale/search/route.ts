@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const query = searchParams.get('name');
+  const name = searchParams.get('name');
+  const code = searchParams.get('code');
+  const barcode = searchParams.get('barcode');
+  const query = code || barcode || name;
 
   if (!query) {
     return NextResponse.json({ items: [] });
@@ -22,8 +25,15 @@ export async function GET(request: Request) {
   }
 
   try {
-    // URL de la API de Bsale para buscar variantes por nombre
-    const url = `https://api.bsale.cl/v1/variants.json?name=${encodeURIComponent(query)}`;
+    let url = 'https://api.bsale.cl/v1/variants.json';
+    
+    if (code) {
+      url += `?code=${encodeURIComponent(code)}`;
+    } else if (barcode) {
+      url += `?barcode=${encodeURIComponent(barcode)}`;
+    } else if (name) {
+      url += `?name=${encodeURIComponent(name)}`;
+    }
     
     const response = await fetch(url, {
       headers: {

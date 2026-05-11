@@ -31,6 +31,45 @@ export default function ValidationTable({ refreshKey = 0 }: { refreshKey?: numbe
     }
   };
 
+  const autoSearchBsale = async (itemsList: any[]) => {
+    for (const item of itemsList) {
+      if (item.supplier_code && !selectedSkus[item.id]) {
+        try {
+          // Intentar buscar por código (SKU)
+          const res = await fetch(`/api/bsale/search?code=${encodeURIComponent(item.supplier_code)}`);
+          const data = await res.json();
+          
+          if (data.items && data.items.length > 0) {
+            setSelectedSkus(prev => ({
+              ...prev,
+              [item.id]: data.items[0].code
+            }));
+            continue;
+          }
+          
+          // Si no encuentra por código, intentar por código de barras
+          const resBar = await fetch(`/api/bsale/search?barcode=${encodeURIComponent(item.supplier_code)}`);
+          const dataBar = await resBar.json();
+          
+          if (dataBar.items && dataBar.items.length > 0) {
+            setSelectedSkus(prev => ({
+              ...prev,
+              [item.id]: dataBar.items[0].code
+            }));
+          }
+        } catch (e) {
+          console.error('Error in auto-search:', e);
+        }
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (items.length > 0) {
+      autoSearchBsale(items);
+    }
+  }, [items]);
+
   const handleVincular = async (item: any) => {
     const selectedSku = selectedSkus[item.id];
     if (!selectedSku) {
