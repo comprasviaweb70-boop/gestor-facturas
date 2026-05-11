@@ -22,8 +22,14 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
       const localCodes = localItems.map(i => i.codigo).join(',');
       
       if (propCodes !== localCodes || localItems.length === 0) {
-        setLocalItems(propItems);
-        searchEquivalences(propItems);
+        // Asignar ID e Index únicos si no los tienen para evitar fallos en la eliminación
+        const itemsWithId = propItems.map((item, index) => ({
+          ...item,
+          id: item.id || `xml-${index}`,
+          index: item.index !== undefined ? item.index : index
+        }));
+        setLocalItems(itemsWithId);
+        searchEquivalences(itemsWithId);
       }
     } else if (!propItems) {
       fetchQueue();

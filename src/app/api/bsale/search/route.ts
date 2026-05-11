@@ -49,11 +49,20 @@ export async function GET(request: Request) {
     const data = await response.json();
     
     // Bsale devuelve un objeto con la propiedad 'items' que es un arreglo de variantes
-    const items = data.items?.map((item: any) => ({
-      id: item.id,
-      name: item.description || item.name, // Bsale suele usar description para el nombre de la variante
-      code: item.code || 'S/SKU'
-    })) || [];
+    const items = data.items?.map((item: any) => {
+      const productName = item.product?.name || '';
+      const variantDesc = item.description || '';
+      // Si la descripción de la variante no contiene el nombre del producto, los combinamos
+      const fullName = (productName && variantDesc && !variantDesc.includes(productName)) 
+        ? `${productName} - ${variantDesc}` 
+        : variantDesc || productName || item.name || 'Sin Nombre';
+        
+      return {
+        id: item.id,
+        name: fullName,
+        code: item.code || 'S/SKU'
+      };
+    }) || [];
 
     return NextResponse.json({ items });
   } catch (error) {
