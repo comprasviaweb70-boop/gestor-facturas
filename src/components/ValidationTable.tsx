@@ -177,11 +177,13 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
     );
   }
 
+  const displayItems = propItems ? localItems.filter(item => !item.internal_sku) : localItems;
+
   return (
     <div className="w-full max-w-6xl mx-auto mt-8 p-6 bg-white rounded-xl shadow-sm border border-gray-100">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold text-primary">
-          {propItems ? 'Productos de la Factura' : 'Productos por Validar (Sin Mapear)'}
+          {propItems ? 'Productos de la Factura (Por Validar)' : 'Productos por Validar (Sin Mapear)'}
         </h2>
         <div className="flex space-x-2">
           {propItems && (
@@ -202,8 +204,8 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
         </div>
       </div>
 
-      {localItems.length === 0 ? (
-        <p className="text-center text-gray-500 py-6">No hay productos para mostrar.</p>
+      {displayItems.length === 0 ? (
+        <p className="text-center text-gray-500 py-6">No hay productos pendientes de validación.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left text-gray-500">
@@ -219,7 +221,7 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
               </tr>
             </thead>
             <tbody>
-              {localItems.map((item, idx) => {
+              {displayItems.map((item, idx) => {
                 const id = item.id || item.index || idx;
                 return (
                   <tr key={id} className="bg-white border-b hover:bg-gray-50">
