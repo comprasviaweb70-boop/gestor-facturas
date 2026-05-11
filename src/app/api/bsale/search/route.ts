@@ -52,10 +52,18 @@ export async function GET(request: Request) {
     const items = data.items?.map((item: any) => {
       const productName = item.product?.name || '';
       const variantDesc = item.description || '';
-      // Si la descripción de la variante no contiene el nombre del producto, los combinamos
-      const fullName = (productName && variantDesc && !variantDesc.includes(productName)) 
-        ? `${productName} - ${variantDesc}` 
-        : variantDesc || productName || item.name || 'Sin Nombre';
+      const brandName = item.product?.brand?.name || '';
+      
+      let parts = [];
+      if (brandName) parts.push(brandName);
+      if (productName) parts.push(productName);
+      
+      // Si la descripción de la variante no contiene el nombre del producto y es distinta, la agregamos
+      if (variantDesc && variantDesc !== productName && !variantDesc.includes(productName)) {
+        parts.push(variantDesc);
+      }
+      
+      const fullName = parts.length > 0 ? parts.join(' - ') : variantDesc || item.name || 'Sin Nombre';
         
       return {
         id: item.id,

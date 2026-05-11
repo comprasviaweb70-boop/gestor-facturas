@@ -250,11 +250,11 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
                 return (
                   <tr key={id} className="bg-white border-b hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-gray-900">
-                      <input
-                        type="text"
+                      <textarea
                         value={item.nombre || item.product_name || ''}
                         onChange={(e) => handleUpdateItem(id, 'nombre', e.target.value)}
-                        className="w-full border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
+                        className="w-full border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary resize-y"
+                        rows={2}
                       />
                     </td>
                     <td className="px-4 py-3">
