@@ -45,7 +45,7 @@ ${xmlContent}`;
     const anthropic = new Anthropic({ apiKey });
 
     const result = await anthropic.messages.create({
-      model: "claude-3-5-haiku-20241022",
+      model: "claude-3-haiku-20240307", // Cambiamos al Haiku estándar por si el 3.5 no está activo en tu cuenta
       max_tokens: 4000,
       temperature: 0,
       messages: [
@@ -59,7 +59,7 @@ ${xmlContent}`;
           ],
         }
       ],
-    }, { timeout: 5000 });
+    }, { timeout: 10000 }); // Subimos el tiempo de espera a 10 segundos
     
     const text = result.content[0].type === 'text' ? result.content[0].text : '';
     
