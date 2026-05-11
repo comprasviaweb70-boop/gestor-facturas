@@ -16,16 +16,7 @@ export async function POST(request: Request) {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    
-    // Diagnóstico: Listar modelos disponibles
-    try {
-      const modelsResponse = await genAI.listModels();
-      console.log('Modelos disponibles en esta API Key:', JSON.stringify(modelsResponse));
-    } catch (e) {
-      console.error('Error al listar modelos:', e);
-    }
-
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' }, { apiVersion: 'v1' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' }, { apiVersion: 'v1' });
 
     const prompt = `Actúa como un experto en facturación electrónica chilena (DTE). Analiza este XML y extrae exclusivamente los siguientes datos en formato JSON:
 
