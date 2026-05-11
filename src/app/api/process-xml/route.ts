@@ -42,7 +42,7 @@ Regla crítica:
 - Para 'impuestosAdicionales', extrae el monto total de impuestos adicionales aplicados a ese ítem. Si no hay, pon 0.`;
 
     const result = await anthropic.messages.create({
-      model: "claude-3-5-haiku-latest",
+      model: "claude-3-5-haiku-20241022", // Usamos el nombre específico del modelo
       max_tokens: 4000,
       temperature: 0,
       system: [
@@ -58,7 +58,10 @@ Regla crítica:
           content: `XML a analizar:\n${xmlContent}`
         }
       ]
-    }, { timeout: 5000 });
+    }, { 
+      timeout: 5000,
+      headers: { 'anthropic-beta': 'prompt-caching-2024-07-31' } // Requerido para usar prompt caching
+    });
     
     const text = result.content[0].type === 'text' ? result.content[0].text : '';
     
