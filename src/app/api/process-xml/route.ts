@@ -49,6 +49,7 @@ Regla crítica:
         {
           type: "text",
           text: systemPrompt,
+          // @ts-ignore
           cache_control: { type: "ephemeral" }
         }
       ],
