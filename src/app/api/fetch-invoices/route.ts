@@ -5,41 +5,32 @@ export async function GET() {
   const token = process.env.BSALE_ACCESS_TOKEN;
   
   try {
-    let dtes = [];
+    let invoices = [];
     
     if (!token || token === 'ejemplo_temporal') {
-      console.log('Modo simulación Bsale para facturas');
-      // Datos simulados
-      dtes = [
+      console.log('Modo simulación Bsale para facturas de compra');
+      invoices = [
         {
           id: 1,
-          emissionDate: Math.floor(Date.now() / 1000) - 86400 * 2, // Hace 2 días
-          folio: '1001',
+          emissionDate: Math.floor(Date.now() / 1000) - 86400 * 2,
+          number: '1001',
           totalAmount: 150000,
-          documentType: { name: 'Factura Electrónica' },
-          client: { code: '81094100-6', company: 'COLUN' }
+          document_type: { name: 'Factura Electrónica' },
+          supplier: { code: '81094100-6', company: 'COLUN' }
         },
         {
           id: 2,
-          emissionDate: Math.floor(Date.now() / 1000) - 86400 * 5, // Hace 5 días
-          folio: '1002',
+          emissionDate: Math.floor(Date.now() / 1000) - 86400 * 5,
+          number: '1002',
           totalAmount: 250000,
-          documentType: { name: 'Factura Electrónica' },
-          client: { code: '76123456-7', company: 'Distribuidora Sur' }
-        },
-        {
-          id: 3,
-          emissionDate: Math.floor(Date.now() / 1000) - 86400 * 40, // Hace 40 días (fuera de rango)
-          folio: '999',
-          totalAmount: 50000,
-          documentType: { name: 'Factura Electrónica' },
-          client: { code: '81094100-6', company: 'COLUN' }
+          document_type: { name: 'Factura Electrónica' },
+          supplier: { code: '76123456-7', company: 'Distribuidora Sur' }
         }
       ];
     } else {
-      // Consulta real a Bsale
-      // Intentamos traer los últimos 50 DTEs
-      const res = await fetch('https://api.bsale.cl/v1/dtes.json?limit=50', {
+      // Consulta a Bsale usando el endpoint sugerido por el usuario para facturas de compra
+      // Probamos con /v1/purchase_invoices.json como base
+      const res = await fetch('https://api.bsale.cl/v1/purchase_invoices.json?limit=50', {
         headers: {
           'access_token': token,
           'Accept': 'application/json'
@@ -47,25 +38,48 @@ export async function GET() {
       });
       
       if (!res.ok) {
-        throw new Error(`Error en la API de Bsale: ${res.status}`);
+        // Si falla, intentamos con received_dtes.json como segunda opción sugerida
+        const resFallback = await fetch('https://api.bsale.cl/v1/received_dtes.json?limit=50', {
+          headers: {
+            'access_token': token,
+            'Accept': 'application/json'
+          }
+        });
+        
+        if (!resFallback.ok) {
+          throw new Error(`Error en la API de Bsale (Purchase): ${res.status} | (Received): ${resFallback.status}`);
+        }
+        
+        const data = await resFallback.json();
+        invoices = data.items || [];
+      } else {
+        const data = await res.json();
+        invoices = data.items || [];
       }
-      
-      const data = await res.json();
-      dtes = data.items || [];
     }
     
-    // Filtrar por Factura Electrónica y último mes
     const oneMonthAgo = Math.floor(Date.now() / 1000) - (30 * 24 * 60 * 60);
     
-    const facturas = dtes.filter((dte: any) => {
-      // Verificamos si es Factura Electrónica (en Bsale suele ser documentTypeId 33 o el nombre)
-      const isFactura = dte.documentType?.name?.includes('Factura') || dte.documentTypeId === 33;
-      const isRecent = dte.emissionDate >= oneMonthAgo;
-      return isFactura && isRecent;
+    // Filtrar por RUT del emisor distinto al de Emporio Iciz
+    // Asumimos que el RUT de Emporio Iciz es el del receptor. 
+    // Para la prueba, filtraremos los que vengan de RUTs conocidos como propios si fuera el caso.
+    // Por defecto, en facturas de compra el emisor SIEMPRE es el tercero (proveedor).
+    
+    const facturas = invoices.filter((inv: any) => {
+      const isRecent = inv.emissionDate >= oneMonthAgo;
+      const isFactura = inv.document_type?.name?.includes('Factura') || inv.document_type_id === 33;
+      
+      // Obtenemos el RUT del emisor (proveedor)
+      const rutEmisor = inv.supplier?.code || inv.issuer?.code || '';
+      
+      // Filtrar si el RUT emisor es igual al de la empresa (suponiendo que no queremos auto-facturas)
+      // Como no tenemos el RUT exacto de Emporio Iciz, dejamos la condición lista:
+      const isFromThirdParty = rutEmisor !== '77777777-7'; // Reemplazar por el RUT real de Emporio Iciz si es necesario
+      
+      return isRecent && isFactura && isFromThirdParty;
     });
     
-    // Cruzar con Supabase para evitar duplicados
-    const folios = facturas.map((f: any) => f.folio.toString());
+    const folios = facturas.map((f: any) => f.number.toString());
     
     const { data: processed, error: dbError } = await supabase
       .from('invoice_processing')
@@ -76,18 +90,17 @@ export async function GET() {
       console.error('Error consultando Supabase:', dbError);
     }
     
-    // Mapear resultados para la interfaz
     const result = facturas.map((f: any) => {
-      const rutEmisor = f.client?.code || 'S/R';
-      const isProcessed = processed?.some((p: any) => p.folio === f.folio.toString() && p.rut_emisor === rutEmisor);
+      const rutEmisor = f.supplier?.code || f.issuer?.code || 'S/R';
+      const isProcessed = processed?.some((p: any) => p.folio === f.number.toString() && p.rut_emisor === rutEmisor);
       
       return {
         id: f.id,
         fecha: new Date(f.emissionDate * 1000).toLocaleDateString('es-CL'),
         rutProveedor: rutEmisor,
-        razonSocial: f.client?.company || 'Sin Nombre',
+        razonSocial: f.supplier?.company || f.supplier?.name || 'Sin Nombre',
         montoTotal: f.totalAmount,
-        folio: f.folio.toString(),
+        folio: f.number.toString(),
         procesada: isProcessed || false
       };
     });

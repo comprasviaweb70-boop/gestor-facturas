@@ -28,7 +28,7 @@ export async function GET(request: Request) {
       </Emisor>
       <Receptor>
         <RUTRecep>77777777-7</RUTRecep>
-        <RznSocRecep>Mi Empresa</RznSocRecep>
+        <RznSocRecep>Emporio Iciz</RznSocRecep>
       </Receptor>
       <Totales>
         <MntNeto>100000</MntNeto>
@@ -54,8 +54,8 @@ export async function GET(request: Request) {
         headers: { 'Content-Type': 'application/xml' }
       });
     } else {
-      // Consulta real a Bsale
-      const res = await fetch(`https://api.bsale.cl/v1/dtes/xml.json?id=${id}`, {
+      // Consulta real a Bsale usando el endpoint para XML de facturas de compra
+      const res = await fetch(`https://api.bsale.cl/v1/purchase_invoices/${id}/xml.json`, {
         headers: {
           'access_token': token,
           'Accept': 'application/json'
@@ -68,10 +68,8 @@ export async function GET(request: Request) {
       
       const data = await res.json();
       
-      // Bsale suele devolver el XML en un campo llamado 'xml' (como string o base64)
-      // O a veces el JSON completo tiene una estructura específica.
-      // Vamos a asumir que viene en data.xml (que es lo más común en su API para esto)
-      const xmlContent = data.xml || JSON.stringify(data);
+      // Bsale devuelve el XML en un campo llamado 'xml'
+      const xmlContent = data.xml || data;
       
       return new Response(xmlContent, {
         headers: { 'Content-Type': 'application/xml' }
