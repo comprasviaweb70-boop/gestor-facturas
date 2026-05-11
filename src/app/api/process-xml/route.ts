@@ -42,6 +42,8 @@ Regla crítica:
 XML a analizar:
 ${xmlContent}`;
 
+    const anthropic = new Anthropic({ apiKey });
+
     const result = await anthropic.messages.create({
       model: "claude-3-5-haiku-20241022",
       max_tokens: 4000,
