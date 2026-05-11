@@ -28,17 +28,21 @@ export async function POST(request: Request) {
       "nombre": "Nombre del producto",
       "codigo": "Código del proveedor (VlrCodigo)",
       "cantidad": 1,
-      "precioNeto": 100,
+      "precioUnitario": 100,
+      "subtotalNeto": 100,
       "impuestosAdicionales": 0
     }
   ]
 }
 
-Regla crítica: Si el código del proveedor no viene explícito, intenta derivarlo de la descripción o marca 'S/C'. No inventes datos.
-Para 'impuestosAdicionales', extrae el monto total de impuestos adicionales (ILA, IABA, etc.) aplicados a ese ítem. Si no hay, pon 0. Si el impuesto viene como tasa (%), calcula el monto en base al precio neto.
+Regla crítica: 
+- \`precioUnitario\` DEBE ser el precio neto unitario (etiqueta <PrcItem>). NO uses el monto total del ítem.
+- \`subtotalNeto\` DEBE ser el monto total neto del ítem (etiqueta <MontoItem> o Cantidad * Precio Unitario).
+- Si el código del proveedor no viene explícito, intenta derivarlo de la descripción o marca 'S/C'. No inventes datos.
+- Para 'impuestosAdicionales', extrae el monto total de impuestos adicionales aplicados a ese ítem. Si no hay, pon 0.
 
 XML a analizar:
-${xmlContent}`;
+\${xmlContent}\`;
 
     const result = await anthropic.messages.create({
       model: "claude-sonnet-4-6",
@@ -69,24 +73,39 @@ ${xmlContent}`;
     const { rutEmisor, items } = data;
     
     if (items && Array.isArray(items)) {
-      let supplierNameIdentified = false;
+      const codigos = items.map(item => item.codigo).filter(c => c && c !== 'S/C');
+      
+      if (codigos.length > 0) {
+        // 1. Buscar todas las equivalencias de golpe
+        const { data: equivalences, error: eqError } = await supabase
+          .from('sku_equivalences')
+          .select('*')
+          .in('supplier_code', codigos);
 
-      for (const item of items) {
-        if (!item.codigo || item.codigo === 'S/C') continue;
+        if (eqError) {
+          console.error('Error fetching equivalences:', eqError);
+        }
 
-        // 1. Identificar el supplier_name si aún no se ha hecho
-        if (!supplierNameIdentified) {
-          const { data: legacyData } = await supabase
-            .from('sku_equivalences')
-            .select('supplier_name')
-            .eq('supplier_code', item.codigo)
-            .is('rut_provider', null)
-            .limit(1);
+        // Crear mapa para búsqueda rápida
+        const eqMap = new Map();
+        equivalences?.forEach(eq => {
+          eqMap.set(`${eq.supplier_code}_${eq.rut_provider}`, eq);
+          if (!eq.rut_provider) {
+            eqMap.set(`${eq.supplier_code}_null`, eq);
+          }
+        });
 
-          if (legacyData && legacyData.length > 0 && legacyData[0].supplier_name) {
-            const supplierName = legacyData[0].supplier_name;
+        // 2. Identificar y actualizar supplier_name si aplica (Aprendizaje de RUT)
+        const legacyItems = items.filter(item => {
+          return !eqMap.has(`${item.codigo}_${rutEmisor}`) && eqMap.has(`${item.codigo}_null`);
+        });
+
+        if (legacyItems.length > 0) {
+          const firstLegacy = eqMap.get(`${legacyItems[0].codigo}_null`);
+          if (firstLegacy && firstLegacy.supplier_name) {
+            const supplierName = firstLegacy.supplier_name;
             
-            // Ejecutar UPDATE masivo para "aprender" el RUT
+            // UPDATE masivo
             const { error: updateError } = await supabase
               .from('sku_equivalences')
               .update({ rut_provider: rutEmisor })
@@ -97,53 +116,36 @@ ${xmlContent}`;
               console.error('Error in massive update for rut_provider:', updateError);
             } else {
               console.log(`Auto-llenado exitoso para el proveedor ${supplierName} con RUT ${rutEmisor}`);
-              supplierNameIdentified = true; // Ya lo hicimos para esta factura
             }
           }
         }
 
-        // 2. Verificar en sku_equivalences (ahora con el RUT ya poblado o buscándolo con RUT)
-        const { data: equivalence, error: eqError } = await supabase
-          .from('sku_equivalences')
-          .select('*')
-          .eq('supplier_code', item.codigo)
-          .eq('rut_provider', rutEmisor)
-          .single();
-
-        let finalEquivalence = equivalence;
-
-        if (!finalEquivalence) {
-          // Fallback a registros legados sin RUT
-          const { data: legacyEq } = await supabase
-            .from('sku_equivalences')
-            .select('*')
-            .eq('supplier_code', item.codigo)
-            .is('rut_provider', null)
-            .limit(1);
-
-          if (legacyEq && legacyEq.length > 0) {
-            finalEquivalence = legacyEq[0];
-          }
-        }
-
-        if (eqError && eqError.code !== 'PGRST116') {
-          console.error('Error checking equivalence:', eqError);
-          continue;
-        }
-
-        // Si no existe, insertar en validation_queue
-        if (!finalEquivalence) {
-          const { error: queueError } = await supabase
-            .from('validation_queue')
-            .upsert({
+        // 3. Identificar cuáles van a la cola de validación
+        const itemsToQueue = [];
+        
+        for (const item of items) {
+          if (!item.codigo || item.codigo === 'S/C') continue;
+          
+          const hasEq = eqMap.has(`${item.codigo}_${rutEmisor}`) || eqMap.has(`${item.codigo}_null`);
+          
+          if (!hasEq) {
+            itemsToQueue.push({
               product_name: item.nombre,
               supplier_code: item.codigo,
               rut_provider: rutEmisor,
               status: 'SIN_MAPEAR'
-            }, { onConflict: 'supplier_code,rut_provider' });
+            });
+          }
+        }
+
+        // Inserción masiva en la cola
+        if (itemsToQueue.length > 0) {
+          const { error: queueError } = await supabase
+            .from('validation_queue')
+            .upsert(itemsToQueue, { onConflict: 'supplier_code,rut_provider' });
 
           if (queueError) {
-            console.error('Error inserting into queue:', queueError);
+            console.error('Error inserting into queue in batch:', queueError);
           }
         }
       }
