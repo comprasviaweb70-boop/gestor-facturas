@@ -39,10 +39,12 @@ Regla crítica:
 - \`precioUnitario\` DEBE ser el precio neto unitario (etiqueta <PrcItem>). NO uses el monto total del ítem.
 - \`subtotalNeto\` DEBE ser el monto total neto del ítem (etiqueta <MontoItem> o Cantidad * Precio Unitario).
 - Si el código del proveedor no viene explícito, intenta derivarlo de la descripción o marca 'S/C'. No inventes datos.
-- Para 'impuestosAdicionales', extrae el monto total de impuestos adicionales aplicados a ese ítem. Si no hay, pon 0.`;
+- Para 'impuestosAdicionales', extrae el monto total de impuestos adicionales aplicados a ese ítem. Si no hay, pon 0.
+
+Responde EXCLUSIVAMENTE con el objeto JSON. No agregues texto antes ni después.`;
 
     const result = await anthropic.messages.create({
-      model: "claude-sonnet-4-6", // Mantenemos Sonnet que te funciona bien
+      model: "claude-3-5-haiku-20241022", // Forzamos a Haiku para ahorrar costos
       max_tokens: 4000,
       temperature: 0,
       system: [
