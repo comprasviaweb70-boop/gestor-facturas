@@ -44,7 +44,7 @@ Regla crítica:
 Responde EXCLUSIVAMENTE con el objeto JSON. No agregues texto antes ni después.`;
 
     const result = await anthropic.messages.create({
-      model: "claude-3-haiku-20240307", // Usamos el Haiku clásico que es más compatible y disponible
+      model: "claude-haiku-4-5-20251001",
       max_tokens: 4000,
       temperature: 0,
       system: [
