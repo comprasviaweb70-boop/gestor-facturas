@@ -62,16 +62,22 @@ export default function Home() {
       // Consultar equivalencias en Supabase
       let equivalences: { [key: string]: string } = {};
       
-      if (supplierCodes.length > 0 && extractedData.rutEmisor) {
+      if (supplierCodes.length > 0) {
         const { data: eqData, error } = await supabase
           .from('sku_equivalences')
-          .select('supplier_code, internal_sku')
-          .eq('rut_provider', extractedData.rutEmisor)
+          .select('supplier_code, internal_sku, rut_provider')
           .in('supplier_code', supplierCodes);
-
+          
         if (!error && eqData) {
           eqData.forEach((eq: any) => {
-            equivalences[eq.supplier_code] = eq.internal_sku;
+            // Priorizar coincidencia exacta con el RUT del proveedor
+            if (eq.rut_provider === extractedData.rutEmisor) {
+              equivalences[eq.supplier_code] = eq.internal_sku;
+            } 
+            // Fallback: Si no tiene RUT (legado), lo usamos si aún no hay coincidencia con RUT
+            else if (!eq.rut_provider && !equivalences[eq.supplier_code]) {
+              equivalences[eq.supplier_code] = eq.internal_sku;
+            }
           });
         }
       }

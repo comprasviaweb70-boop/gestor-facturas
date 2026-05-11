@@ -110,13 +110,29 @@ ${xmlContent}`;
           .eq('rut_provider', rutEmisor)
           .single();
 
+        let finalEquivalence = equivalence;
+
+        if (!finalEquivalence) {
+          // Fallback a registros legados sin RUT
+          const { data: legacyEq } = await supabase
+            .from('sku_equivalences')
+            .select('*')
+            .eq('supplier_code', item.codigo)
+            .is('rut_provider', null)
+            .limit(1);
+
+          if (legacyEq && legacyEq.length > 0) {
+            finalEquivalence = legacyEq[0];
+          }
+        }
+
         if (eqError && eqError.code !== 'PGRST116') {
           console.error('Error checking equivalence:', eqError);
           continue;
         }
 
         // Si no existe, insertar en validation_queue
-        if (!equivalence) {
+        if (!finalEquivalence) {
           const { error: queueError } = await supabase
             .from('validation_queue')
             .upsert({
