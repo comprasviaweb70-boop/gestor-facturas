@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import Anthropic from '@anthropic-ai/sdk';
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
@@ -10,13 +10,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Falta el contenido del XML' }, { status: 400 });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey || apiKey === 'your_gemini_api_key') {
-      return NextResponse.json({ error: 'API Key de Gemini no configurada' }, { status: 500 });
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ error: 'API Key de Anthropic no configurada' }, { status: 500 });
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' }, { apiVersion: 'v1' });
+    const anthropic = new Anthropic({ apiKey });
 
     const prompt = `Actúa como un experto en facturación electrónica chilena (DTE). Analiza este XML y extrae exclusivamente los siguientes datos en formato JSON:
 
@@ -41,8 +40,19 @@ Para 'impuestosAdicionales', extrae el monto total de impuestos adicionales (ILA
 XML a analizar:
 ${xmlContent}`;
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
+    const result = await anthropic.messages.create({
+      model: "claude-3-5-sonnet-latest",
+      max_tokens: 4000,
+      temperature: 0,
+      messages: [
+        {
+          role: "user",
+          content: prompt,
+        }
+      ],
+    });
+    
+    const text = result.content[0].type === 'text' ? result.content[0].text : '';
     
     // Intentar extraer el JSON del texto
     const jsonMatch = text.match(/\{[\s\S]*\}/);
