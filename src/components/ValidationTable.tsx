@@ -2,17 +2,27 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Link as LinkIcon, Loader2 } from 'lucide-react';
+import { Link as LinkIcon, Loader2, Plus, Trash2 } from 'lucide-react';
 
-export default function ValidationTable({ refreshKey = 0 }: { refreshKey?: number }) {
-  const [items, setItems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+interface ValidationTableProps {
+  items?: any[];
+  onItemsChange?: (items: any[]) => void;
+  rutEmisor?: string;
+}
+
+export default function ValidationTable({ items: propItems, onItemsChange, rutEmisor }: ValidationTableProps) {
+  const [localItems, setLocalItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
   const [selectedSkus, setSelectedSkus] = useState<{ [key: string]: string }>({});
   const [processingItems, setProcessingItems] = useState<{ [key: string]: boolean }>({});
 
   useEffect(() => {
-    fetchQueue();
-  }, [refreshKey]);
+    if (propItems) {
+      setLocalItems(propItems);
+    } else {
+      fetchQueue();
+    }
+  }, [propItems]);
 
   const fetchQueue = async () => {
     setLoading(true);
@@ -23,7 +33,7 @@ export default function ValidationTable({ refreshKey = 0 }: { refreshKey?: numbe
         .eq('status', 'SIN_MAPEAR');
 
       if (error) throw error;
-      setItems(data || []);
+      setLocalItems(data || []);
     } catch (error) {
       console.error('Error fetching queue:', error);
     } finally {
@@ -31,84 +41,81 @@ export default function ValidationTable({ refreshKey = 0 }: { refreshKey?: numbe
     }
   };
 
-  const autoSearchBsale = async (itemsList: any[]) => {
-    for (const item of itemsList) {
-      if (item.supplier_code && !selectedSkus[item.id]) {
-        try {
-          // Intentar buscar por código (SKU)
-          const res = await fetch(`/api/bsale/search?code=${encodeURIComponent(item.supplier_code)}`);
-          const data = await res.json();
-          
-          if (data.items && data.items.length > 0) {
-            setSelectedSkus(prev => ({
-              ...prev,
-              [item.id]: data.items[0].code
-            }));
-            continue;
-          }
-          
-          // Si no encuentra por código, intentar por código de barras
-          const resBar = await fetch(`/api/bsale/search?barcode=${encodeURIComponent(item.supplier_code)}`);
-          const dataBar = await resBar.json();
-          
-          if (dataBar.items && dataBar.items.length > 0) {
-            setSelectedSkus(prev => ({
-              ...prev,
-              [item.id]: dataBar.items[0].code
-            }));
-          }
-        } catch (e) {
-          console.error('Error in auto-search:', e);
-        }
+  const handleUpdateItem = (id: string | number, field: string, value: any) => {
+    const updatedItems = localItems.map(item => {
+      const itemId = item.id || item.index;
+      if (itemId === id) {
+        return { ...item, [field]: value };
       }
+      return item;
+    });
+    setLocalItems(updatedItems);
+    if (onItemsChange) {
+      onItemsChange(updatedItems);
     }
   };
 
-  useEffect(() => {
-    if (items.length > 0) {
-      autoSearchBsale(items);
-    }
-  }, [items]);
-
-  const handleVincular = async (item: any) => {
-    const selectedSku = selectedSkus[item.id];
-    if (!selectedSku) {
-      alert('Por favor, ingresa un SKU de Bsale primero.');
-      return;
-    }
-
-    setProcessingItems(prev => ({ ...prev, [item.id]: true }));
-
+  const handleBarcodeScan = async (id: string | number, barcode: string) => {
+    if (!barcode) return;
+    
     try {
-      // a) Upsert en sku_equivalences
-      const { error: upsertError } = await supabase
-        .from('sku_equivalences')
-        .upsert({
-          internal_sku: selectedSku,
-          supplier_code: item.supplier_code,
-          rut_provider: item.rut_provider,
-          supplier_name: 'Proveedor' // Podríamos pasarlo si lo tenemos
-        }, { onConflict: 'supplier_code,rut_provider' });
+      const res = await fetch(`/api/bsale/search?barcode=${encodeURIComponent(barcode)}`);
+      const data = await res.json();
+      
+      if (data.items && data.items.length > 0) {
+        const foundSku = data.items[0].code;
+        
+        // Actualizar SKU en el estado local
+        handleUpdateItem(id, 'internal_sku', foundSku);
+        
+        // Persistencia automática en Supabase si viene del XML
+        const item = localItems.find(i => (i.id || i.index) === id);
+        if (item && item.codigo && rutEmisor) {
+          const { error } = await supabase
+            .from('sku_equivalences')
+            .upsert({
+              internal_sku: foundSku,
+              supplier_code: item.codigo,
+              rut_provider: rutEmisor,
+              supplier_name: 'Proveedor'
+            }, { onConflict: 'supplier_code,rut_provider' });
+            
+          if (!error) {
+            alert(`¡Vinculado automáticamente! ${item.codigo} -> ${foundSku}`);
+          }
+        }
+      } else {
+        alert('No se encontró el producto en Bsale con ese código de barras.');
+      }
+    } catch (e) {
+      console.error('Error in barcode scan:', e);
+      alert('Error al consultar Bsale.');
+    }
+  };
 
-      if (upsertError) throw upsertError;
+  const handleAddRow = () => {
+    const newRow = {
+      id: `new-${Date.now()}`,
+      index: localItems.length,
+      nombre: 'Nuevo Producto',
+      codigo: 'S/C',
+      cantidad: 1,
+      precioUnitario: 0,
+      subtotalNeto: 0,
+      impuestosAdicionales: 0
+    };
+    const updatedItems = [...localItems, newRow];
+    setLocalItems(updatedItems);
+    if (onItemsChange) {
+      onItemsChange(updatedItems);
+    }
+  };
 
-      // b) Cambiar estado en validation_queue a 'MAPEADO'
-      const { error: updateError } = await supabase
-        .from('validation_queue')
-        .update({ status: 'MAPEADO' })
-        .eq('supplier_code', item.supplier_code)
-        .eq('rut_provider', item.rut_provider);
-
-      if (updateError) throw updateError;
-
-      // Refrescar la tabla
-      await fetchQueue();
-      alert('Vinculación exitosa');
-    } catch (error) {
-      console.error('Error vinculando:', error);
-      alert('Error al realizar la vinculación.');
-    } finally {
-      setProcessingItems(prev => ({ ...prev, [item.id]: false }));
+  const handleRemoveRow = (id: string | number) => {
+    const updatedItems = localItems.filter(item => (item.id || item.index) !== id);
+    setLocalItems(updatedItems);
+    if (onItemsChange) {
+      onItemsChange(updatedItems);
     }
   };
 
@@ -116,7 +123,7 @@ export default function ValidationTable({ refreshKey = 0 }: { refreshKey?: numbe
     return (
       <div className="flex justify-center items-center p-10">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="ml-2 text-gray-600">Cargando cola de validación...</span>
+        <span className="ml-2 text-gray-600">Cargando datos...</span>
       </div>
     );
   }
@@ -124,65 +131,135 @@ export default function ValidationTable({ refreshKey = 0 }: { refreshKey?: numbe
   return (
     <div className="w-full max-w-6xl mx-auto mt-8 p-6 bg-white rounded-xl shadow-sm border border-gray-100">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold text-primary">Productos por Validar (Sin Mapear)</h2>
-        <button
-          onClick={fetchQueue}
-          className="text-sm text-primary hover:text-primary/80 font-medium"
-        >
-          Actualizar
-        </button>
+        <h2 className="text-xl font-semibold text-primary">
+          {propItems ? 'Productos de la Factura' : 'Productos por Validar (Sin Mapear)'}
+        </h2>
+        <div className="flex space-x-2">
+          {propItems && (
+            <button
+              onClick={handleAddRow}
+              className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-action hover:bg-orange-600 transition-colors"
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              Agregar Fila
+            </button>
+          )}
+          <button
+            onClick={fetchQueue}
+            className="text-sm text-primary hover:text-primary/80 font-medium px-3 py-1.5"
+          >
+            Actualizar
+          </button>
+        </div>
       </div>
 
-      {items.length === 0 ? (
-        <p className="text-center text-gray-500 py-6">No hay productos pendientes de validación.</p>
+      {localItems.length === 0 ? (
+        <p className="text-center text-gray-500 py-6">No hay productos para mostrar.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left text-gray-500">
             <thead className="text-xs text-white uppercase bg-primary">
               <tr>
-                <th scope="col" className="px-6 py-3">Producto (Factura)</th>
-                <th scope="col" className="px-6 py-3">Código Prov.</th>
-                <th scope="col" className="px-6 py-3">RUT Prov.</th>
-                <th scope="col" className="px-6 py-3">SKU Bsale</th>
-                <th scope="col" className="px-6 py-3">Acción</th>
+                <th scope="col" className="px-4 py-3">Producto</th>
+                <th scope="col" className="px-4 py-3">Cód. Prov.</th>
+                <th scope="col" className="px-4 py-3">Cant.</th>
+                <th scope="col" className="px-4 py-3">PCU</th>
+                <th scope="col" className="px-4 py-3">Escanear Barra</th>
+                <th scope="col" className="px-4 py-3">SKU Bsale</th>
+                <th scope="col" className="px-4 py-3">Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {items.map((item) => (
-                <tr key={item.id} className="bg-white border-b hover:bg-gray-50">
-                  <td className="px-6 py-4 font-medium text-gray-900">{item.product_name}</td>
-                  <td className="px-6 py-4">{item.supplier_code}</td>
-                  <td className="px-6 py-4">{item.rut_provider}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center border rounded-md px-2 py-1 bg-white focus-within:ring-1 focus-within:ring-primary">
+              {localItems.map((item, idx) => {
+                const id = item.id || item.index || idx;
+                return (
+                  <tr key={id} className="bg-white border-b hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium text-gray-900">
+                      {propItems ? (
+                        <input
+                          type="text"
+                          value={item.nombre || ''}
+                          onChange={(e) => handleUpdateItem(id, 'nombre', e.target.value)}
+                          className="w-full border-none focus:ring-0 text-sm p-0 bg-transparent"
+                        />
+                      ) : (
+                        item.product_name || item.nombre
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {propItems ? (
+                        <input
+                          type="text"
+                          value={item.codigo || ''}
+                          onChange={(e) => handleUpdateItem(id, 'codigo', e.target.value)}
+                          className="w-24 border-none focus:ring-0 text-sm p-0 bg-transparent"
+                        />
+                      ) : (
+                        item.supplier_code
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <input
+                        type="number"
+                        value={item.cantidad || 0}
+                        onChange={(e) => handleUpdateItem(id, 'cantidad', Number(e.target.value))}
+                        className="w-16 border rounded-md px-2 py-1 text-sm"
+                        min="0"
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <input
+                        type="number"
+                        value={item.precioUnitario || item.precioNeto || 0}
+                        onChange={(e) => handleUpdateItem(id, 'precioUnitario', Number(e.target.value))}
+                        className="w-24 border rounded-md px-2 py-1 text-sm"
+                        min="0"
+                      />
+                    </td>
+                    <td className="px-4 py-3">
                       <input
                         type="text"
-                        placeholder="Ingresar SKU Bsale..."
-                        value={selectedSkus[item.id] || ''}
-                        onChange={(e) => setSelectedSkus(prev => ({ ...prev, [item.id]: e.target.value }))}
-                        className="border-none outline-none text-sm w-full focus:ring-0"
+                        placeholder="Escanear..."
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            handleBarcodeScan(id, (e.target as HTMLInputElement).value);
+                            (e.target as HTMLInputElement).value = ''; // Limpiar después de escanear
+                          }
+                        }}
+                        className="w-32 border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
                       />
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <button
-                      onClick={() => handleVincular(item)}
-                      disabled={processingItems[item.id] || !selectedSkus[item.id]}
-                      className={`inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-full shadow-sm text-white transition-colors ${processingItems[item.id] || !selectedSkus[item.id]
-                          ? 'bg-gray-300 cursor-not-allowed'
-                          : 'bg-action hover:bg-orange-600'
-                        }`}
-                    >
-                      {processingItems[item.id] ? (
-                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                      ) : (
-                        <LinkIcon className="h-3 w-3 mr-1" />
-                      )}
-                      Vincular
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-4 py-3">
+                      <input
+                        type="text"
+                        placeholder="SKU Bsale"
+                        value={item.internal_sku || selectedSkus[id] || ''}
+                        onChange={(e) => {
+                          handleUpdateItem(id, 'internal_sku', e.target.value);
+                          setSelectedSkus(prev => ({ ...prev, [id]: e.target.value }));
+                        }}
+                        className="w-24 border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
+                      />
+                    </td>
+                    <td className="px-4 py-3 flex space-x-2">
+                      <button
+                        onClick={() => handleBarcodeScan(id, selectedSkus[id] || '')}
+                        className="p-1.5 text-primary hover:text-primary/80"
+                        title="Vincular"
+                      >
+                        <LinkIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleRemoveRow(id)}
+                        className="p-1.5 text-red-500 hover:text-red-700"
+                        title="Eliminar fila"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

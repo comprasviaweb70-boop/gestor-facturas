@@ -186,7 +186,11 @@ export default function Home() {
         <UploadModule onDataExtracted={handleDataExtracted} />
 
         {/* Validation Table */}
-        <ValidationTable refreshKey={refreshKey} />
+        <ValidationTable 
+          items={extractedData?.items} 
+          onItemsChange={(updatedItems) => setExtractedData({...extractedData, items: updatedItems})}
+          rutEmisor={extractedData?.rutEmisor}
+        />
       </div>
     </main>
   );
