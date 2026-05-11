@@ -28,53 +28,42 @@ export async function GET() {
         }
       ];
     } else {
-      // Consulta a Bsale usando el endpoint sugerido por el usuario para facturas de compra
-      // Probamos con /v1/purchase_invoices.json como base
-      const res = await fetch('https://api.bsale.cl/v1/purchase_invoices.json?limit=50', {
+      // Intentamos con el endpoint que mencionaste: documents/search/from_third_party
+      // Probamos con la extensión .json que exige Bsale
+      let res = await fetch('https://api.bsale.cl/v1/documents/search/from_third_party.json?limit=50', {
         headers: {
           'access_token': token,
           'Accept': 'application/json'
         }
       });
       
+      // Si da 404, intentamos como parámetro de búsqueda en el search general
       if (!res.ok) {
-        // Si falla, intentamos con received_dtes.json como segunda opción sugerida
-        const resFallback = await fetch('https://api.bsale.cl/v1/received_dtes.json?limit=50', {
+        console.log('Falló /documents/search/from_third_party.json, intentando como parámetro...');
+        res = await fetch('https://api.bsale.cl/v1/documents/search.json?from_third_party=1&limit=50', {
           headers: {
             'access_token': token,
             'Accept': 'application/json'
           }
         });
-        
-        if (!resFallback.ok) {
-          throw new Error(`Error en la API de Bsale (Purchase): ${res.status} | (Received): ${resFallback.status}`);
-        }
-        
-        const data = await resFallback.json();
-        invoices = data.items || [];
-      } else {
-        const data = await res.json();
-        invoices = data.items || [];
       }
+      
+      if (!res.ok) {
+        throw new Error(`Error en la API de Bsale: ${res.status}`);
+      }
+      
+      const data = await res.json();
+      invoices = data.items || [];
     }
     
     const oneMonthAgo = Math.floor(Date.now() / 1000) - (30 * 24 * 60 * 60);
-    
-    // Filtrar por RUT del emisor distinto al de Emporio Iciz
-    // Asumimos que el RUT de Emporio Iciz es el del receptor. 
-    // Para la prueba, filtraremos los que vengan de RUTs conocidos como propios si fuera el caso.
-    // Por defecto, en facturas de compra el emisor SIEMPRE es el tercero (proveedor).
     
     const facturas = invoices.filter((inv: any) => {
       const isRecent = inv.emissionDate >= oneMonthAgo;
       const isFactura = inv.document_type?.name?.includes('Factura') || inv.document_type_id === 33;
       
-      // Obtenemos el RUT del emisor (proveedor)
       const rutEmisor = inv.supplier?.code || inv.issuer?.code || '';
-      
-      // Filtrar si el RUT emisor es igual al de la empresa (suponiendo que no queremos auto-facturas)
-      // Como no tenemos el RUT exacto de Emporio Iciz, dejamos la condición lista:
-      const isFromThirdParty = rutEmisor !== '77777777-7'; // Reemplazar por el RUT real de Emporio Iciz si es necesario
+      const isFromThirdParty = rutEmisor !== '77777777-7'; // Ajustar si es necesario
       
       return isRecent && isFactura && isFromThirdParty;
     });
@@ -86,10 +75,6 @@ export async function GET() {
       .select('folio, rut_emisor')
       .in('folio', folios);
       
-    if (dbError) {
-      console.error('Error consultando Supabase:', dbError);
-    }
-    
     const result = facturas.map((f: any) => {
       const rutEmisor = f.supplier?.code || f.issuer?.code || 'S/R';
       const isProcessed = processed?.some((p: any) => p.folio === f.number.toString() && p.rut_emisor === rutEmisor);
