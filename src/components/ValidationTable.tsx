@@ -249,6 +249,7 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
                     <td className="px-4 py-3">
                       <input
                         type="number"
+                        step="any"
                         value={item.cantidad || 0}
                         onChange={(e) => handleUpdateItem(id, 'cantidad', Number(e.target.value))}
                         className="w-16 border rounded-md px-2 py-1 text-sm"
@@ -258,6 +259,7 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
                     <td className="px-4 py-3">
                       <input
                         type="number"
+                        step="any"
                         value={item.precioUnitario || item.precioNeto || 0}
                         onChange={(e) => handleUpdateItem(id, 'precioUnitario', Number(e.target.value))}
                         className="w-24 border rounded-md px-2 py-1 text-sm"
