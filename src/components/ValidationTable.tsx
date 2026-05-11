@@ -17,12 +17,48 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
   const [processingItems, setProcessingItems] = useState<{ [key: string]: boolean }>({});
 
   useEffect(() => {
-    if (propItems) {
+    if (propItems && propItems.length > 0) {
       setLocalItems(propItems);
-    } else {
+      searchEquivalences(propItems);
+    } else if (!propItems) {
       fetchQueue();
     }
   }, [propItems]);
+
+  const searchEquivalences = async (itemsList: any[]) => {
+    const codigos = itemsList.map(item => item.codigo).filter(c => c && c !== 'S/C');
+    if (codigos.length === 0 || !rutEmisor) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('sku_equivalences')
+        .select('supplier_code, internal_sku, rut_provider')
+        .in('supplier_code', codigos);
+
+      if (error) throw error;
+
+      if (data) {
+        const updatedItems = itemsList.map(item => {
+          const match = data.find(eq => 
+            eq.supplier_code === item.codigo && 
+            (eq.rut_provider === rutEmisor || !eq.rut_provider)
+          );
+          
+          if (match) {
+            return { ...item, internal_sku: match.internal_sku };
+          }
+          return item;
+        });
+        
+        setLocalItems(updatedItems);
+        if (onItemsChange) {
+          onItemsChange(updatedItems);
+        }
+      }
+    } catch (error) {
+      console.error('Error searching equivalences in table:', error);
+    }
+  };
 
   const fetchQueue = async () => {
     setLoading(true);
@@ -59,12 +95,25 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
     if (!barcode) return;
     
     try {
+      // Intentar primero por código de barras
       const res = await fetch(`/api/bsale/search?barcode=${encodeURIComponent(barcode)}`);
       const data = await res.json();
       
+      let foundSku = '';
+      
       if (data.items && data.items.length > 0) {
-        const foundSku = data.items[0].code;
+        foundSku = data.items[0].code;
+      } else {
+        // Fallback: Intentar por código (SKU) por si acaso el escáner leyó el SKU o Bsale lo tiene ahí
+        const resCode = await fetch(`/api/bsale/search?code=${encodeURIComponent(barcode)}`);
+        const dataCode = await resCode.json();
         
+        if (dataCode.items && dataCode.items.length > 0) {
+          foundSku = dataCode.items[0].code;
+        }
+      }
+      
+      if (foundSku) {
         // Actualizar SKU en el estado local
         handleUpdateItem(id, 'internal_sku', foundSku);
         
