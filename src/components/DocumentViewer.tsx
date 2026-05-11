@@ -12,7 +12,9 @@ interface DocumentViewerProps {
       nombre: string;
       codigo: string;
       cantidad: number;
-      precioNeto: number;
+      precioUnitario?: number;
+      precioNeto?: number;
+      subtotalNeto?: number;
     }>;
   } | null;
 }
@@ -82,19 +84,23 @@ export default function DocumentViewer({ data }: DocumentViewerProps) {
                   </thead>
                   <tbody>
                     {data.items && data.items.length > 0 ? (
-                      data.items.map((item, index) => (
-                        <tr key={index} className="border-b hover:bg-gray-50">
-                          <td className="px-6 py-4 font-medium text-gray-900">{item.codigo || 'S/C'}</td>
-                          <td className="px-6 py-4">{item.nombre}</td>
-                          <td className="px-6 py-4 text-right">{item.cantidad}</td>
-                          <td className="px-6 py-4 text-right">
-                            ${item.precioNeto ? item.precioNeto.toLocaleString('es-CL') : '0'}
-                          </td>
-                          <td className="px-6 py-4 text-right font-medium text-gray-900">
-                            ${(item.cantidad * item.precioNeto).toLocaleString('es-CL')}
-                          </td>
-                        </tr>
-                      ))
+                      data.items.map((item, index) => {
+                        const precioUnit = item.precioUnitario || item.precioNeto || 0;
+                        const totalNeto = item.subtotalNeto || (item.cantidad * precioUnit);
+                        return (
+                          <tr key={index} className="border-b hover:bg-gray-50">
+                            <td className="px-6 py-4 font-medium text-gray-900">{item.codigo || 'S/C'}</td>
+                            <td className="px-6 py-4">{item.nombre}</td>
+                            <td className="px-6 py-4 text-right">{item.cantidad}</td>
+                            <td className="px-6 py-4 text-right">
+                              ${precioUnit.toLocaleString('es-CL')}
+                            </td>
+                            <td className="px-6 py-4 text-right font-medium text-gray-900">
+                              ${totalNeto.toLocaleString('es-CL')}
+                            </td>
+                          </tr>
+                        );
+                      })
                     ) : (
                       <tr>
                         <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
@@ -110,7 +116,11 @@ export default function DocumentViewer({ data }: DocumentViewerProps) {
                         <td className="px-6 py-3 text-right">
                           $
                           {data.items
-                            .reduce((acc, item) => acc + item.cantidad * item.precioNeto, 0)
+                            .reduce((acc, item) => {
+                              const precioUnit = item.precioUnitario || item.precioNeto || 0;
+                              const totalNeto = item.subtotalNeto || (item.cantidad * precioUnit);
+                              return acc + totalNeto;
+                            }, 0)
                             .toLocaleString('es-CL')}
                         </td>
                       </tr>
