@@ -42,7 +42,7 @@ Regla crítica:
 - Para 'impuestosAdicionales', extrae el monto total de impuestos adicionales aplicados a ese ítem. Si no hay, pon 0.
 
 XML a analizar:
-\${xmlContent}\`;
+${xmlContent}`;
 
     const result = await anthropic.messages.create({
       model: "claude-sonnet-4-6",
@@ -88,20 +88,20 @@ XML a analizar:
 
         // Crear mapa para búsqueda rápida
         const eqMap = new Map();
-        equivalences?.forEach(eq => {
-          eqMap.set(`${eq.supplier_code}_${eq.rut_provider}`, eq);
+        equivalences?.forEach((eq: any) => {
+          eqMap.set(eq.supplier_code + '_' + eq.rut_provider, eq);
           if (!eq.rut_provider) {
-            eqMap.set(`${eq.supplier_code}_null`, eq);
+            eqMap.set(eq.supplier_code + '_null', eq);
           }
         });
 
         // 2. Identificar y actualizar supplier_name si aplica (Aprendizaje de RUT)
-        const legacyItems = items.filter(item => {
-          return !eqMap.has(`${item.codigo}_${rutEmisor}`) && eqMap.has(`${item.codigo}_null`);
+        const legacyItems = items.filter((item: any) => {
+          return !eqMap.has(item.codigo + '_' + rutEmisor) && eqMap.has(item.codigo + '_null');
         });
 
         if (legacyItems.length > 0) {
-          const firstLegacy = eqMap.get(`${legacyItems[0].codigo}_null`);
+          const firstLegacy = eqMap.get(legacyItems[0].codigo + '_null');
           if (firstLegacy && firstLegacy.supplier_name) {
             const supplierName = firstLegacy.supplier_name;
             
@@ -115,7 +115,7 @@ XML a analizar:
             if (updateError) {
               console.error('Error in massive update for rut_provider:', updateError);
             } else {
-              console.log(`Auto-llenado exitoso para el proveedor ${supplierName} con RUT ${rutEmisor}`);
+              console.log('Auto-llenado exitoso para el proveedor ' + supplierName + ' con RUT ' + rutEmisor);
             }
           }
         }
@@ -126,7 +126,7 @@ XML a analizar:
         for (const item of items) {
           if (!item.codigo || item.codigo === 'S/C') continue;
           
-          const hasEq = eqMap.has(`${item.codigo}_${rutEmisor}`) || eqMap.has(`${item.codigo}_null`);
+          const hasEq = eqMap.has(item.codigo + '_' + rutEmisor) || eqMap.has(item.codigo + '_null');
           
           if (!hasEq) {
             itemsToQueue.push({
