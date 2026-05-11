@@ -29,6 +29,8 @@ export async function GET() {
         }
       });
       
+      console.log(`[TEST Bsale] Respuesta de ${url}: ${res.status}`);
+      
       let data = null;
       let itemsCount = 0;
       
