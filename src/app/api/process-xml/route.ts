@@ -41,7 +41,7 @@ Regla crítica:
 - Si el código del proveedor no viene explícito, intenta derivarlo de la descripción o marca 'S/C'. No inventes datos.
 - Para 'impuestosAdicionales', extrae el monto total de impuestos adicionales aplicados a ese ítem. Si no hay, pon 0.
 
-Responde EXCLUSIVAMENTE con el objeto JSON. No agregues texto antes ni después.`;
+Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explicaciones, sin bloques de código markdown. El primer carácter de tu respuesta debe ser { y el último }.`;
 
     const result = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
