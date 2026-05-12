@@ -116,6 +116,14 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
       // Reglas especiales por proveedor
       // MAD CHARLIES (RUT: 77659607-8) - Distribución de flete
       if (rutEmisor === '77659607-8' || (data.razonSocial && data.razonSocial.toUpperCase().includes('MAD CHARLIES'))) {
+        // MAD CHARLIES es proveedor de cerveza, aplicar 20.5% de impuesto a todo (excepto flete)
+        items.forEach((item: any) => {
+          const name = (item.nombre || '').toUpperCase();
+          if (!name.includes('DELIVERY') && !name.includes('FLETE')) {
+            item.impuestosAdicionales = (item.precioUnitario || item.precioNeto || 0) * 0.205;
+          }
+        });
+
         const deliveryItemIndex = items.findIndex((item: any) => 
           (item.nombre || '').toUpperCase().includes('DELIVERY') || 
           (item.nombre || '').toUpperCase().includes('FLETE')
