@@ -113,6 +113,17 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
         item.unidadesPorPack = multiplier;
         item.cantidadReal = (item.cantidad || 0) * multiplier;
         
+        // Aplicar regla de packs automáticamente si se detecta más de 1 unidad por pack
+        if (multiplier > 1) {
+          const originalCantidad = item.cantidad || 0;
+          item.cantidad = item.cantidadReal;
+          
+          if (item.subtotalNeto && item.subtotalNeto > 0) {
+            item.precioUnitario = item.subtotalNeto / item.cantidadReal;
+          }
+          console.log(`Pack Applied Auto: ${item.nombre} -> Cantidad: ${originalCantidad} to ${item.cantidad}, PCU: ${item.precioUnitario}`);
+        }
+        
         console.log(`Pack Detection: ${item.nombre} -> Mult: ${multiplier}, Cantidad Real: ${item.cantidadReal}`);
       });
 

@@ -185,7 +185,20 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
     const updatedItems = localItems.map(item => {
       const itemId = item.id || item.index;
       if (itemId === id) {
-        return { ...item, [field]: value };
+        const updatedItem = { ...item, [field]: value };
+        
+        // Recalcular precio unitario si cambia la cantidad (regla de packs)
+        if (field === 'cantidad' && Number(value) > 0) {
+          if (item.subtotalNeto && item.subtotalNeto > 0) {
+            // El costo unitario se recalcula dividiendo el total neto por las nuevas unidades
+            updatedItem.precioUnitario = item.subtotalNeto / Number(value);
+          } else if (item.precioUnitario && item.precioUnitario > 0) {
+            // Fallback para filas manuales: actualizar subtotal
+            updatedItem.subtotalNeto = Number(value) * item.precioUnitario;
+          }
+        }
+        
+        return updatedItem;
       }
       return item;
     });
