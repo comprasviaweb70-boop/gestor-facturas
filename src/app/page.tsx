@@ -91,7 +91,7 @@ export default function Home() {
           
           const sku = item.internal_sku || equivalences[item.codigo] || 'SIN MATCH';
           // Usamos precioUnitario que ahora viene explícito del análisis de Claude
-          const pcu = (item.precioUnitario || item.precioNeto || 0) + (item.impuestosAdicionales || 0);
+          const pcu = (item.precioUnitario || item.precioNeto || 0) + (item.impuestosAdicionales || 0) + (item.deliveryUnitario || 0);
           const pvu = pcu * (1 + margin / 100) * 1.19;
 
           row.values = [
@@ -128,7 +128,11 @@ export default function Home() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `Factura_${extractedData.folio || 'sin_folio'}.xlsx`;
+      
+      const supplierName = (extractedData.razonSocial || 'Sin_Proveedor').replace(/[\\/:*?"<>|]/g, '').trim();
+      const folio = extractedData.folio || 'Sin_Folio';
+      a.download = `${supplierName}_${folio}.xlsx`;
+      
       a.click();
       window.URL.revokeObjectURL(url);
     } catch (error) {

@@ -201,13 +201,13 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
     );
   }
 
-  const displayItems = propItems ? localItems.filter(item => !item.internal_sku) : localItems;
+  const displayItems = localItems;
 
   return (
     <div className="w-full max-w-6xl mx-auto mt-8 p-6 bg-white rounded-xl shadow-sm border border-gray-100">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold text-primary">
-          {propItems ? 'Productos de la Factura (Por Validar)' : 'Productos por Validar (Sin Mapear)'}
+          {propItems ? 'Productos de la Factura' : 'Productos por Validar (Sin Mapear)'}
         </h2>
         <div className="flex space-x-2">
           {propItems && (

@@ -77,6 +77,62 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
     const { rutEmisor, items } = data;
     
     if (items && Array.isArray(items)) {
+      // Auto-detectar impuestos adicionales por nombre si vienen en 0
+      try {
+        const { data: taxRates, error: taxError } = await supabase
+          .from('tax_rates')
+          .select('product_type, tax_percentage');
+
+        if (!taxError && taxRates) {
+          items.forEach((item: any) => {
+            if (!item.impuestosAdicionales || item.impuestosAdicionales === 0) {
+              const nombreUpper = (item.nombre || '').toUpperCase();
+              
+              for (const rate of taxRates) {
+                const keyword = (rate.product_type || '').trim().toUpperCase();
+                if (keyword && nombreUpper.includes(keyword)) {
+                  const porcentaje = rate.tax_percentage / 100;
+                  item.impuestosAdicionales = Math.round((item.subtotalNeto || 0) * porcentaje);
+                  console.log(`Aplicado impuesto ${rate.product_type} (${rate.tax_percentage}%) a ${item.nombre}: ${item.impuestosAdicionales}`);
+                  break; // Aplicar solo el primero que coincida
+                }
+              }
+            }
+          });
+        }
+      } catch (e) {
+        console.error('Error in tax auto-detection:', e);
+      }
+
+      // Reglas especiales por proveedor
+      // MAD CHARLIES (RUT: 77659607-8) - Distribución de flete
+      if (rutEmisor === '77659607-8' || (data.razonSocial && data.razonSocial.toUpperCase().includes('MAD CHARLIES'))) {
+        const deliveryItemIndex = items.findIndex((item: any) => 
+          (item.nombre || '').toUpperCase().includes('DELIVERY') || 
+          (item.nombre || '').toUpperCase().includes('FLETE')
+        );
+
+        if (deliveryItemIndex >= 0) {
+          const deliveryItem = items[deliveryItemIndex];
+          const totalDelivery = deliveryItem.subtotalNeto || ((deliveryItem.cantidad || 0) * (deliveryItem.precioUnitario || 0));
+          
+          // Eliminar el item de delivery de la lista
+          items.splice(deliveryItemIndex, 1);
+          
+          // Calcular total de unidades de productos restantes
+          const totalUnits = items.reduce((acc: number, item: any) => acc + (Number(item.cantidad) || 0), 0);
+          
+          if (totalUnits > 0) {
+            const deliveryUnitario = totalDelivery / totalUnits;
+            console.log(`MAD CHARLIES: Distribuyendo ${totalDelivery} de flete entre ${totalUnits} unidades. Delivery unitario: ${deliveryUnitario}`);
+            
+            items.forEach((item: any) => {
+              item.deliveryUnitario = deliveryUnitario;
+            });
+          }
+        }
+      }
+
       const codigos = items.map(item => item.codigo).filter(c => c && c !== 'S/C');
       
       if (codigos.length > 0) {
