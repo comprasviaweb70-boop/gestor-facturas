@@ -147,7 +147,7 @@ export default function Home() {
     <main className="min-h-screen bg-bg-light py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto space-y-8">
         {/* Header */}
-        <div className="bg-primary text-white p-6 rounded-xl shadow-sm flex justify-between items-center">
+        <div className="bg-orange-600 text-white p-6 rounded-xl shadow-sm flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold">SIAI - Pantalla de Validación</h1>
             <p className="text-sm text-white/80 mt-1">Emporio Iciz - Gestión de Facturas y Mapeo de SKUs</p>
