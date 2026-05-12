@@ -1,13 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Link as LinkIcon, Loader2, Plus, Trash2 } from 'lucide-react';
+import { Link as LinkIcon, Loader2, Plus, Trash2, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 
 interface ValidationTableProps {
   items?: any[];
   onItemsChange?: (items: any[]) => void;
   rutEmisor?: string;
+}
+
+interface Toast {
+  id: number;
+  message: string;
+  type: 'success' | 'error' | 'warning';
 }
 
 export default function ValidationTable({ items: propItems, onItemsChange, rutEmisor }: ValidationTableProps) {
@@ -16,6 +22,15 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
   const [showAll, setShowAll] = useState(false);
   const [selectedSkus, setSelectedSkus] = useState<{ [key: string]: string }>({});
   const [processingItems, setProcessingItems] = useState<{ [key: string]: boolean }>({});
+  const [toasts, setToasts] = useState<Toast[]>([]);
+
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'warning' = 'success') => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 3000);
+  }, []);
 
   useEffect(() => {
     if (propItems && propItems.length > 0) {
@@ -85,7 +100,53 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
 
       if (error) throw error;
       
-      const mappedQueue = (data || []).map(item => ({
+      const queueItems = data || [];
+      
+      // Auto-limpiar: verificar cuáles ya tienen equivalencia y marcarlos
+      if (queueItems.length > 0) {
+        const codes = queueItems.map(q => q.supplier_code).filter(Boolean);
+        const { data: existingEqs } = await supabase
+          .from('sku_equivalences')
+          .select('supplier_code, rut_provider')
+          .in('supplier_code', codes);
+        
+        if (existingEqs && existingEqs.length > 0) {
+          const alreadyMapped = queueItems.filter(q => 
+            existingEqs.some(eq => 
+              eq.supplier_code === q.supplier_code && 
+              (!eq.rut_provider || eq.rut_provider === q.rut_provider)
+            )
+          );
+          
+          // Marcar como MAPEADO en la BD
+          for (const item of alreadyMapped) {
+            await supabase
+              .from('validation_queue')
+              .update({ status: 'MAPEADO' })
+              .eq('id', item.id);
+          }
+          
+          // Filtrar los ya mapeados del resultado
+          const remaining = queueItems.filter(q => 
+            !alreadyMapped.some(m => m.id === q.id)
+          );
+          
+          const mappedQueue = remaining.map(item => ({
+            ...item,
+            codigo: item.supplier_code,
+            nombre: item.product_name,
+            id: item.id
+          }));
+          
+          setLocalItems(mappedQueue);
+          if (alreadyMapped.length > 0) {
+            showToast(`${alreadyMapped.length} producto(s) ya mapeados fueron removidos de la cola.`, 'success');
+          }
+          return;
+        }
+      }
+      
+      const mappedQueue = queueItems.map(item => ({
         ...item,
         codigo: item.supplier_code,
         nombre: item.product_name,
@@ -96,6 +157,25 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
       searchEquivalences(mappedQueue);
     } catch (error) {
       console.error('Error fetching queue:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePurgeQueue = async () => {
+    if (!confirm('¿Eliminar TODOS los productos de la cola de validación? Esto no afecta las equivalencias guardadas.')) return;
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from('validation_queue')
+        .delete()
+        .eq('status', 'SIN_MAPEAR');
+      if (error) throw error;
+      setLocalItems([]);
+      showToast('Cola de validación limpiada.', 'success');
+    } catch (error) {
+      console.error('Error purging queue:', error);
+      showToast('Error al limpiar la cola.', 'error');
     } finally {
       setLoading(false);
     }
@@ -205,7 +285,7 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
           }
             
           if (!saveError) {
-            alert(`¡Vinculado y guardado! ${activeCodigo} -> ${foundSku}`);
+            showToast(`✓ Vinculado: ${activeCodigo} → ${foundSku}`, 'success');
             
             // Si estamos en modo cola (sin propItems), marcar como mapeado en la cola
             if (!propItems && item.id) {
@@ -216,18 +296,18 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
             }
           } else {
             console.error('Error saving equivalence:', saveError);
-            alert(`ERROR al guardar equivalencia: ${saveError.message}\nCódigo: ${activeCodigo}\nRUT: ${activeRut}`);
+            showToast(`Error al guardar: ${saveError.message}`, 'error');
           }
         } else {
           console.warn('Missing data for save:', { activeCodigo, activeRut, hasItem: !!item });
-          alert(`No se pudo guardar: faltan datos.\nCódigo: ${activeCodigo || 'VACÍO'}\nRUT: ${activeRut || 'VACÍO'}`);
+          showToast(`No se pudo guardar: faltan datos (Cód: ${activeCodigo || '?'}, RUT: ${activeRut || '?'})`, 'warning');
         }
       } else {
-        alert('No se encontró el producto en Bsale con ese código de barras.');
+        showToast('No se encontró el producto en Bsale con ese código.', 'warning');
       }
     } catch (e) {
       console.error('Error in barcode scan:', e);
-      alert('Error al consultar Bsale.');
+      showToast('Error al consultar Bsale.', 'error');
     }
   };
 
@@ -299,6 +379,14 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
           >
             Actualizar
           </button>
+          {!propItems && localItems.length > 0 && (
+            <button
+              onClick={handlePurgeQueue}
+              className="text-sm text-red-500 hover:text-red-700 font-medium px-3 py-1.5"
+            >
+              Limpiar Cola
+            </button>
+          )}
         </div>
       </div>
 
@@ -417,6 +505,26 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
               })}
             </tbody>
           </table>
+        </div>
+      )}
+      {/* Toast Notifications */}
+      {toasts.length > 0 && (
+        <div className="fixed bottom-6 right-6 z-50 space-y-2">
+          {toasts.map((toast) => (
+            <div
+              key={toast.id}
+              className={`flex items-center space-x-2 px-4 py-3 rounded-lg shadow-lg text-sm font-medium animate-fade-in ${
+                toast.type === 'success' ? 'bg-green-600 text-white' :
+                toast.type === 'error' ? 'bg-red-600 text-white' :
+                'bg-yellow-500 text-white'
+              }`}
+            >
+              {toast.type === 'success' && <CheckCircle className="h-4 w-4 flex-shrink-0" />}
+              {toast.type === 'error' && <XCircle className="h-4 w-4 flex-shrink-0" />}
+              {toast.type === 'warning' && <AlertTriangle className="h-4 w-4 flex-shrink-0" />}
+              <span>{toast.message}</span>
+            </div>
+          ))}
         </div>
       )}
     </div>
