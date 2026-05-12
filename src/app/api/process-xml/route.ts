@@ -119,7 +119,9 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
         // MAD CHARLIES es proveedor de cerveza, aplicar 20.5% de impuesto a todo (excepto flete)
         items.forEach((item: any) => {
           const name = (item.nombre || '').toUpperCase();
-          if (!name.includes('DELIVERY') && !name.includes('FLETE')) {
+          if (name.includes('SIN ALCOHOL')) {
+            item.impuestosAdicionales = (item.precioUnitario || item.precioNeto || 0) * 0.10;
+          } else if (!name.includes('DELIVERY') && !name.includes('FLETE')) {
             item.impuestosAdicionales = (item.precioUnitario || item.precioNeto || 0) * 0.205;
           }
         });

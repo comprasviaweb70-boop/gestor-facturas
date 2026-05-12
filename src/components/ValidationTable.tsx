@@ -38,7 +38,7 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
   }, [propItems]);
 
   const searchEquivalences = async (itemsList: any[]) => {
-    const codigos = itemsList.map(item => item.codigo || item.supplier_code).filter(c => c && c !== 'S/C');
+    const codigos = itemsList.map(item => (item.codigo || item.supplier_code || '').trim()).filter(c => c && c !== 'S/C');
     if (codigos.length === 0) return;
 
     try {
@@ -51,11 +51,11 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
 
       if (data) {
         const updatedItems = itemsList.map(item => {
-          const itemCodigo = item.codigo || item.supplier_code;
+          const itemCodigo = (item.codigo || item.supplier_code || '').trim();
           const itemRut = item.rut_provider || rutEmisor;
           
           const match = data.find(eq => 
-            eq.supplier_code === itemCodigo && 
+            (eq.supplier_code || '').trim() === itemCodigo && 
             (eq.rut_provider === itemRut || !eq.rut_provider)
           );
           
@@ -157,7 +157,7 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
         // Persistencia automática en Supabase
         const item = localItems.find(i => (i.id || i.index) === id);
         const activeRut = rutEmisor || (item && item.rut_provider);
-        const activeCodigo = item ? (item.codigo || item.supplier_code) : null;
+        const activeCodigo = item ? (item.codigo || item.supplier_code || '').trim() : null;
         
         if (item && activeCodigo && activeRut) {
           const { error } = await supabase
