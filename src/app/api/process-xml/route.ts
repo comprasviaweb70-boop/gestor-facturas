@@ -71,7 +71,16 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     const jsonText = jsonMatch ? jsonMatch[0] : text;
     
-    const data = JSON.parse(jsonText);
+    let data;
+    try {
+      data = JSON.parse(jsonText);
+    } catch (e) {
+      console.error('Failed to parse JSON from Claude. Raw text:', text);
+      return NextResponse.json({ 
+        error: 'El análisis de la factura no generó un resultado válido.', 
+        details: text.substring(0, 100) 
+      }, { status: 500 });
+    }
     
     // Lógica de base de datos
     const { rutEmisor, items } = data;
