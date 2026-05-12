@@ -437,6 +437,12 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
                         className="w-16 border rounded-md px-2 py-1 text-sm"
                         min="0"
                       />
+                      {item.unidadesPorPack && item.unidadesPorPack > 1 && (
+                        <div className="text-xs text-orange-600 mt-1 font-medium" title="Detectado como pack/display">
+                          Pack ×{item.unidadesPorPack}
+                          <div className="text-gray-500">Tot: {(item.cantidad || 0) * item.unidadesPorPack}</div>
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <input

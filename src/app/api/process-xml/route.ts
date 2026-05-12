@@ -86,6 +86,36 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
     const { rutEmisor, items } = data;
     
     if (items && Array.isArray(items)) {
+      // Regla General: Detectar packs o displays y calcular unidades reales
+      items.forEach((item: any) => {
+        const nombreUpper = (item.nombre || '').toUpperCase();
+        let multiplier = 1;
+
+        // Caso 1: Patrón AxBxC (ej: 12X30X15 GRS), el segundo término es la cantidad de unidades
+        const multiXMatch = nombreUpper.match(/(\d+)\s*X\s*(\d+)\s*X\s*\d+/);
+        if (multiXMatch) {
+          multiplier = parseInt(multiXMatch[2], 10);
+        } else {
+          // Caso 2: Palabra unidades, unid, un precedida por un número
+          // Usamos límites de palabra \b para evitar falsos positivos con "BUN", "LUN", etc.
+          const unMatch = nombreUpper.match(/(\d+)\s*(?:UNIDADES|UNID|UN)\b/);
+          if (unMatch) {
+            multiplier = parseInt(unMatch[1], 10);
+          } else {
+            // Caso 3: PACK o DISPLAY seguido de un número
+            const packMatch = nombreUpper.match(/(?:PACK|DISPLAY)\s*(?:DE\s*)?(\d+)/);
+            if (packMatch) {
+              multiplier = parseInt(packMatch[1], 10);
+            }
+          }
+        }
+
+        item.unidadesPorPack = multiplier;
+        item.cantidadReal = (item.cantidad || 0) * multiplier;
+        
+        console.log(`Pack Detection: ${item.nombre} -> Mult: ${multiplier}, Cantidad Real: ${item.cantidadReal}`);
+      });
+
       // Auto-detectar impuestos adicionales por nombre si vienen en 0
       try {
         const { data: taxRates, error: taxError } = await supabase
