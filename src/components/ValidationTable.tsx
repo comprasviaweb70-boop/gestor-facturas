@@ -274,6 +274,7 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
                 <th scope="col" className="px-4 py-3">Cód. Prov.</th>
                 <th scope="col" className="px-4 py-3">Cant.</th>
                 <th scope="col" className="px-4 py-3">PCU</th>
+                <th scope="col" className="px-4 py-3">Subtotal</th>
                 <th scope="col" className="px-4 py-3">Escanear Barra</th>
                 <th scope="col" className="px-4 py-3">SKU Bsale</th>
                 <th scope="col" className="px-4 py-3">Acciones</th>
@@ -319,6 +320,17 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
                         className="w-24 border rounded-md px-2 py-1 text-sm"
                         min="0"
                       />
+                      {item.deliveryUnitario && (
+                        <div className="text-xs text-orange-600 mt-1">
+                          +${Math.round(item.deliveryUnitario).toLocaleString('es-CL')} flete
+                        </div>
+                      )}
+                      <div className="text-xs text-primary font-medium mt-1">
+                        PCU: ${Math.round((item.precioUnitario || item.precioNeto || 0) + (item.impuestosAdicionales || 0) + (item.deliveryUnitario || 0)).toLocaleString('es-CL')}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 font-medium text-gray-900">
+                      ${Math.round((item.cantidad || 0) * (item.precioUnitario || item.precioNeto || 0)).toLocaleString('es-CL')}
                     </td>
                     <td className="px-4 py-3">
                       <input
