@@ -160,13 +160,23 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
         const activeCodigo = item ? (item.codigo || item.supplier_code || '').trim() : null;
         
         if (item && activeCodigo && activeRut) {
+          console.log('=== SAVING EQUIVALENCE ===');
+          console.log('activeCodigo:', activeCodigo);
+          console.log('activeRut:', activeRut);
+          console.log('foundSku:', foundSku);
+          
           // Check if equivalence already exists
-          const { data: existing } = await supabase
+          const { data: existing, error: checkError } = await supabase
             .from('sku_equivalences')
             .select('id')
             .eq('supplier_code', activeCodigo)
             .eq('rut_provider', activeRut)
             .limit(1);
+
+          if (checkError) {
+            console.error('Error checking existing:', checkError);
+          }
+          console.log('existing:', existing);
 
           let saveError = null;
           
@@ -177,9 +187,10 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
               .update({ internal_sku: foundSku, supplier_name: 'Proveedor' })
               .eq('id', existing[0].id);
             saveError = error;
+            console.log('UPDATE result error:', error);
           } else {
             // Insert new
-            const { error } = await supabase
+            const { data: insertData, error } = await supabase
               .from('sku_equivalences')
               .insert({
                 internal_sku: foundSku,
@@ -187,24 +198,29 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
                 supplier_code: activeCodigo,
                 rut_provider: activeRut,
                 supplier_name: 'Proveedor'
-              });
+              })
+              .select();
             saveError = error;
+            console.log('INSERT result:', insertData, 'error:', error);
           }
             
           if (!saveError) {
-            alert(`¡Vinculado automáticamente! ${activeCodigo} -> ${foundSku}`);
+            alert(`¡Vinculado y guardado! ${activeCodigo} -> ${foundSku}`);
             
             // Si estamos en modo cola (sin propItems), marcar como mapeado en la cola
             if (!propItems && item.id) {
               await supabase
                 .from('validation_queue')
-                .update({ status: 'MAPEAR' })
+                .update({ status: 'MAPEADO' })
                 .eq('id', item.id);
             }
           } else {
             console.error('Error saving equivalence:', saveError);
-            alert('Error al guardar la equivalencia: ' + saveError.message);
+            alert(`ERROR al guardar equivalencia: ${saveError.message}\nCódigo: ${activeCodigo}\nRUT: ${activeRut}`);
           }
+        } else {
+          console.warn('Missing data for save:', { activeCodigo, activeRut, hasItem: !!item });
+          alert(`No se pudo guardar: faltan datos.\nCódigo: ${activeCodigo || 'VACÍO'}\nRUT: ${activeRut || 'VACÍO'}`);
         }
       } else {
         alert('No se encontró el producto en Bsale con ese código de barras.');
