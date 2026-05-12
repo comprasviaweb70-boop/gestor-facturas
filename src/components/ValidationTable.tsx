@@ -154,20 +154,33 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
           onItemsChange(updatedItems);
         }
         
-        // Persistencia automática en Supabase si viene del XML
+        // Persistencia automática en Supabase
         const item = localItems.find(i => (i.id || i.index) === id);
-        if (item && item.codigo && rutEmisor) {
+        const activeRut = rutEmisor || (item && item.rut_provider);
+        const activeCodigo = item ? (item.codigo || item.supplier_code) : null;
+        
+        if (item && activeCodigo && activeRut) {
           const { error } = await supabase
             .from('sku_equivalences')
             .upsert({
               internal_sku: foundSku,
-              supplier_code: item.codigo,
-              rut_provider: rutEmisor,
+              supplier_code: activeCodigo,
+              rut_provider: activeRut,
               supplier_name: 'Proveedor'
             }, { onConflict: 'supplier_code,rut_provider' });
             
           if (!error) {
-            alert(`¡Vinculado automáticamente! ${item.codigo} -> ${foundSku}`);
+            alert(`¡Vinculado automáticamente! ${activeCodigo} -> ${foundSku}`);
+            
+            // Si estamos en modo cola (sin propItems), marcar como mapeado en la cola
+            if (!propItems && item.id) {
+              await supabase
+                .from('validation_queue')
+                .update({ status: 'MAPEAR' })
+                .eq('id', item.id);
+            }
+          } else {
+            console.error('Error saving equivalence:', error);
           }
         }
       } else {
