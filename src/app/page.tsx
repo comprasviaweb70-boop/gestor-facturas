@@ -15,10 +15,66 @@ export default function Home() {
   const [isExporting, setIsExporting] = useState(false);
   const [margin, setMargin] = useState(50); // Margen por defecto del 50%
   const [refreshKey, setRefreshKey] = useState(0);
+  const [fantasyName, setFantasyName] = useState('');
+  const [isSavingFantasyName, setIsSavingFantasyName] = useState(false);
 
-  const handleDataExtracted = (data: any) => {
+  const handleDataExtracted = async (data: any) => {
     setExtractedData(data);
     setRefreshKey(prev => prev + 1);
+    
+    if (data && data.rutEmisor) {
+      try {
+        const { data: provData, error } = await supabase
+          .from('proveedores')
+          .select('nombre')
+          .eq('rut', data.rutEmisor);
+          
+        if (!error && provData && provData.length > 0) {
+          setFantasyName(provData[0].nombre || '');
+        } else {
+          setFantasyName('');
+        }
+      } catch (e) {
+        console.error('Error fetching provider:', e);
+      }
+    }
+  };
+
+  const handleSaveFantasyName = async () => {
+    if (!extractedData?.rutEmisor || !fantasyName.trim()) return;
+    
+    setIsSavingFantasyName(true);
+    try {
+      const { data: existing } = await supabase
+        .from('proveedores')
+        .select('rut')
+        .eq('rut', extractedData.rutEmisor);
+        
+      let error;
+      if (existing && existing.length > 0) {
+        const { error: err } = await supabase
+          .from('proveedores')
+          .update({ nombre: fantasyName.trim() })
+          .eq('rut', extractedData.rutEmisor);
+        error = err;
+      } else {
+        const { error: err } = await supabase
+          .from('proveedores')
+          .insert({ 
+            rut: extractedData.rutEmisor, 
+            nombre: fantasyName.trim() 
+          });
+        error = err;
+      }
+      
+      if (error) throw error;
+      alert('Nombre de fantasía guardado correctamente.');
+    } catch (error: any) {
+      console.error('Error saving fantasy name:', error);
+      alert('Error al guardar: ' + error.message);
+    } finally {
+      setIsSavingFantasyName(false);
+    }
   };
 
   const handleExportExcel = async () => {
@@ -29,14 +85,8 @@ export default function Home() {
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('Factura');
 
-      // Mapeo de nombres de fantasía por RUT
-      const fantasyNames: { [rut: string]: string } = {
-        '77659607-8': 'MAD CHARLIES',
-        // Agregar más proveedores aquí conforme se vayan incorporando
-      };
-
       const rut = extractedData.rutEmisor || '';
-      const displayName = fantasyNames[rut] || extractedData.razonSocial || 'No especificado';
+      const displayName = fantasyName || extractedData.razonSocial || 'No especificado';
 
       // Fila 1: A1: 'Proveedor:', B1: [Nombre de Fantasía]
       worksheet.getCell('A1').value = 'Proveedor:';
@@ -215,6 +265,34 @@ export default function Home() {
             )}
           </div>
         </div>
+        {/* Supplier Info Card */}
+        {extractedData && (
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+              <div>
+                <h3 className="text-lg font-semibold text-primary">Información del Proveedor</h3>
+                <p className="text-sm text-gray-500">{extractedData.razonSocial || 'No especificado'} | RUT: {extractedData.rutEmisor || 'No especificado'}</p>
+              </div>
+              <div className="flex items-center space-x-2">
+                <label className="text-sm font-medium text-gray-700 whitespace-nowrap">Nombre de Fantasía:</label>
+                <input
+                  type="text"
+                  value={fantasyName}
+                  onChange={(e) => setFantasyName(e.target.value)}
+                  className="border rounded-md px-3 py-1.5 text-sm focus:ring-1 focus:ring-primary w-full sm:w-64"
+                  placeholder="Ej: MAD CHARLIES"
+                />
+                <button
+                  onClick={handleSaveFantasyName}
+                  disabled={isSavingFantasyName}
+                  className="inline-flex items-center px-4 py-1.5 bg-primary text-white text-sm font-medium rounded-md hover:bg-primary/90 transition-colors disabled:bg-gray-400"
+                >
+                  {isSavingFantasyName ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Guardar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Upload Module */}
         <UploadModule onDataExtracted={handleDataExtracted} />
