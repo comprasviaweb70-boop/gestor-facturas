@@ -38,8 +38,8 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
   }, [propItems]);
 
   const searchEquivalences = async (itemsList: any[]) => {
-    const codigos = itemsList.map(item => item.codigo).filter(c => c && c !== 'S/C');
-    if (codigos.length === 0 || !rutEmisor) return;
+    const codigos = itemsList.map(item => item.codigo || item.supplier_code).filter(c => c && c !== 'S/C');
+    if (codigos.length === 0) return;
 
     try {
       const { data, error } = await supabase
@@ -51,9 +51,12 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
 
       if (data) {
         const updatedItems = itemsList.map(item => {
+          const itemCodigo = item.codigo || item.supplier_code;
+          const itemRut = item.rut_provider || rutEmisor;
+          
           const match = data.find(eq => 
-            eq.supplier_code === item.codigo && 
-            (eq.rut_provider === rutEmisor || !eq.rut_provider)
+            eq.supplier_code === itemCodigo && 
+            (eq.rut_provider === itemRut || !eq.rut_provider)
           );
           
           if (match) {
@@ -81,7 +84,16 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
         .eq('status', 'SIN_MAPEAR');
 
       if (error) throw error;
-      setLocalItems(data || []);
+      
+      const mappedQueue = (data || []).map(item => ({
+        ...item,
+        codigo: item.supplier_code,
+        nombre: item.product_name,
+        id: item.id
+      }));
+      
+      setLocalItems(mappedQueue);
+      searchEquivalences(mappedQueue);
     } catch (error) {
       console.error('Error fetching queue:', error);
     } finally {
