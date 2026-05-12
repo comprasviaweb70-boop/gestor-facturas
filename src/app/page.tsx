@@ -28,18 +28,27 @@ export default function Home() {
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('Factura');
 
-      // Fila 1: A1: 'Proveedor:', B1: [Nombre]
+      // Mapeo de nombres de fantasía por RUT
+      const fantasyNames: { [rut: string]: string } = {
+        '77659607-8': 'MAD CHARLIES',
+        // Agregar más proveedores aquí conforme se vayan incorporando
+      };
+
+      const rut = extractedData.rutEmisor || '';
+      const displayName = fantasyNames[rut] || extractedData.razonSocial || 'No especificado';
+
+      // Fila 1: A1: 'Proveedor:', B1: [Nombre de Fantasía]
       worksheet.getCell('A1').value = 'Proveedor:';
-      worksheet.getCell('B1').value = extractedData.razonSocial || 'No especificado';
+      worksheet.getCell('B1').value = displayName;
       worksheet.getCell('A1').font = { bold: true };
 
       // Fila 2: A2: 'RUT:', B2: [RUT]
       worksheet.getCell('A2').value = 'RUT:';
-      worksheet.getCell('B2').value = extractedData.rutEmisor || 'No especificado';
+      worksheet.getCell('B2').value = rut || 'No especificado';
       worksheet.getCell('A2').font = { bold: true };
 
-      // Fila 4: A4: 'N° Factura', B4: 'SKU', C4: 'Stock', D4: 'PCU', E4: 'PVU'
-      const headers = ['N° Factura', 'SKU', 'Stock', 'PCU', 'PVU'];
+      // Fila 4: Headers con nueva columna Total
+      const headers = ['N° Factura', 'SKU', 'Stock', 'PCU', 'Total', 'PVU'];
       const headerRow = worksheet.getRow(4);
       headerRow.values = headers;
 
@@ -85,6 +94,7 @@ export default function Home() {
 
       // Datos
       let currentRow = 5;
+      let grandTotal = 0;
       if (extractedData.items) {
         for (const item of extractedData.items) {
           const row = worksheet.getRow(currentRow);
@@ -92,23 +102,41 @@ export default function Home() {
           const sku = item.internal_sku || equivalences[item.codigo] || 'SIN MATCH';
           // Usamos precioUnitario que ahora viene explícito del análisis de Claude
           const pcu = (item.precioUnitario || item.precioNeto || 0) + (item.impuestosAdicionales || 0) + (item.deliveryUnitario || 0);
+          const totalItem = (item.cantidad || 0) * pcu;
           const pvu = pcu * (1 + margin / 100) * 1.19;
+          grandTotal += totalItem;
 
           row.values = [
             extractedData.folio || 'S/F',
             sku,
             item.cantidad || 0,
             pcu,
+            totalItem,
             pvu
           ];
 
           // Formato numérico para precios
           row.getCell(4).numFmt = '"$"#,##0';
           row.getCell(5).numFmt = '"$"#,##0';
+          row.getCell(6).numFmt = '"$"#,##0';
 
           currentRow++;
         }
       }
+
+      // Fila de totales
+      const totalRow = worksheet.getRow(currentRow);
+      totalRow.getCell(4).value = 'TOTAL:';
+      totalRow.getCell(4).font = { bold: true };
+      totalRow.getCell(4).alignment = { horizontal: 'right' };
+      totalRow.getCell(5).value = grandTotal;
+      totalRow.getCell(5).numFmt = '"$"#,##0';
+      totalRow.getCell(5).font = { bold: true };
+      totalRow.getCell(5).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE8F0FE' }
+      };
 
       // Auto-ajustar columnas
       worksheet.columns.forEach((column: any) => {
@@ -122,16 +150,16 @@ export default function Home() {
         column.width = maxLength < 12 ? 12 : maxLength + 2;
       });
 
-      // Descargar archivo
+      // Descargar archivo con nombre de fantasía
       const buffer = await workbook.xlsx.writeBuffer();
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       
-      const supplierName = (extractedData.razonSocial || 'Sin_Proveedor').replace(/[\\/:*?"<>|]/g, '').trim();
+      const sanitizedName = displayName.replace(/[\\/:*?"<>|]/g, '').trim();
       const folio = extractedData.folio || 'Sin_Folio';
-      a.download = `${supplierName}_${folio}.xlsx`;
+      a.download = `${sanitizedName}_${folio}.xlsx`;
       
       a.click();
       window.URL.revokeObjectURL(url);

@@ -56,7 +56,7 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
           
           const match = data.find(eq => 
             (eq.supplier_code || '').trim() === itemCodigo && 
-            (eq.rut_provider === itemRut || !eq.rut_provider)
+            (!eq.rut_provider || eq.rut_provider === itemRut)
           );
           
           if (match) {
@@ -160,16 +160,38 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
         const activeCodigo = item ? (item.codigo || item.supplier_code || '').trim() : null;
         
         if (item && activeCodigo && activeRut) {
-          const { error } = await supabase
+          // Check if equivalence already exists
+          const { data: existing } = await supabase
             .from('sku_equivalences')
-            .upsert({
-              internal_sku: foundSku,
-              supplier_code: activeCodigo,
-              rut_provider: activeRut,
-              supplier_name: 'Proveedor'
-            }, { onConflict: 'supplier_code,rut_provider' });
+            .select('id')
+            .eq('supplier_code', activeCodigo)
+            .eq('rut_provider', activeRut)
+            .limit(1);
+
+          let saveError = null;
+          
+          if (existing && existing.length > 0) {
+            // Update existing
+            const { error } = await supabase
+              .from('sku_equivalences')
+              .update({ internal_sku: foundSku, supplier_name: 'Proveedor' })
+              .eq('id', existing[0].id);
+            saveError = error;
+          } else {
+            // Insert new
+            const { error } = await supabase
+              .from('sku_equivalences')
+              .insert({
+                internal_sku: foundSku,
+                source_sku: activeCodigo,
+                supplier_code: activeCodigo,
+                rut_provider: activeRut,
+                supplier_name: 'Proveedor'
+              });
+            saveError = error;
+          }
             
-          if (!error) {
+          if (!saveError) {
             alert(`¡Vinculado automáticamente! ${activeCodigo} -> ${foundSku}`);
             
             // Si estamos en modo cola (sin propItems), marcar como mapeado en la cola
@@ -180,7 +202,8 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
                 .eq('id', item.id);
             }
           } else {
-            console.error('Error saving equivalence:', error);
+            console.error('Error saving equivalence:', saveError);
+            alert('Error al guardar la equivalencia: ' + saveError.message);
           }
         }
       } else {
