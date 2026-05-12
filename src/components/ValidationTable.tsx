@@ -202,9 +202,7 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
     );
   }
 
-  const displayItems = propItems 
-    ? (showAll ? localItems : localItems.filter(item => !item.internal_sku))
-    : localItems;
+  const displayItems = showAll ? localItems : localItems.filter(item => !item.internal_sku);
 
   return (
     <div className="w-full max-w-6xl mx-auto mt-8 p-6 bg-white rounded-xl shadow-sm border border-gray-100">
@@ -213,17 +211,15 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
           {propItems ? 'Productos de la Factura' : 'Productos por Validar (Sin Mapear)'}
         </h2>
         <div className="flex items-center space-x-4">
-          {propItems && (
-            <label className="flex items-center space-x-2 text-sm text-gray-600 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={showAll}
-                onChange={(e) => setShowAll(e.target.checked)}
-                className="rounded border-gray-300 text-primary focus:ring-primary"
-              />
-              <span>Mostrar todos</span>
-            </label>
-          )}
+          <label className="flex items-center space-x-2 text-sm text-gray-600 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showAll}
+              onChange={(e) => setShowAll(e.target.checked)}
+              className="rounded border-gray-300 text-primary focus:ring-primary"
+            />
+            <span>Mostrar todos</span>
+          </label>
           {propItems && (
             <button
               onClick={handleAddRow}
