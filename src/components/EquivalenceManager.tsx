@@ -168,7 +168,7 @@ export default function EquivalenceManager() {
       {isOpen && (
         <div className="bg-white mt-2 rounded-xl shadow-sm border border-gray-100 overflow-hidden">
           {/* Search Bar */}
-          <div className="p-4 border-b border-gray-100 flex items-center space-x-3">
+          <div className="p-4 border-b border-gray-100 flex flex-col md:flex-row md:items-center space-y-3 md:space-y-0 md:space-x-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
@@ -179,10 +179,44 @@ export default function EquivalenceManager() {
                 className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
               />
             </div>
+            
+            {/* Buscador por Código de Barras */}
+            <div className="relative w-full md:w-64">
+              <input
+                type="text"
+                placeholder="Escanear código de barras..."
+                onKeyDown={async (e) => {
+                  if (e.key === 'Enter') {
+                    const barcode = e.currentTarget.value.trim();
+                    if (!barcode) return;
+                    
+                    try {
+                      const res = await fetch(`/api/bsale/search?barcode=${encodeURIComponent(barcode)}`);
+                      const data = await res.json();
+                      
+                      if (data.items && data.items.length > 0) {
+                        const sku = data.items[0].code;
+                        setSearchTerm(sku);
+                        alert(`Encontrado en Bsale: ${data.items[0].name}. Filtrando por SKU: ${sku}`);
+                      } else {
+                        alert('No se encontró producto en Bsale con ese código de barras.');
+                      }
+                    } catch (error) {
+                      console.error('Error searching barcode:', error);
+                      alert('Error al buscar el código de barras.');
+                    } finally {
+                      e.currentTarget.value = ''; // Limpiar input
+                    }
+                  }
+                }}
+                className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-gray-50"
+              />
+            </div>
+
             <button
               onClick={fetchEquivalences}
               disabled={loading}
-              className="inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg text-primary border border-primary hover:bg-primary/5 transition-colors disabled:opacity-50"
+              className="inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg text-primary border border-primary hover:bg-primary/5 transition-colors disabled:opacity-50 justify-center"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Recargar'}
             </button>

@@ -188,6 +188,13 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
               if (!item.impuestosAdicionales || item.impuestosAdicionales === 0) {
                 const nombreUpper = (item.nombre || '').toUpperCase();
                 
+                // Regla especial: Bebidas energéticas no identificadas por proveedores (18%)
+                if (nombreUpper.includes('SCOREGORILLA') || nombreUpper.includes('RB ACAI') || nombreUpper.includes('REDBULRED')) {
+                  item.impuestosAdicionales = Math.round((item.subtotalNeto || 0) * 0.18);
+                  console.log(`Aplicado impuesto especial Bebida Energética (18%) a ${item.nombre}`);
+                  return; // Pasar al siguiente ítem
+                }
+                
                 for (const rate of taxRates) {
                   const keyword = (rate.product_type || '').trim().toUpperCase();
                   if (keyword && nombreUpper.includes(keyword)) {
