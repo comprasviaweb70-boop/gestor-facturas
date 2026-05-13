@@ -187,11 +187,20 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
       if (itemId === id) {
         const updatedItem = { ...item, [field]: value };
         
-        // Recalcular precio unitario si cambia la cantidad (regla de packs)
+        // Recalcular precio unitario e impuesto si cambia la cantidad (regla de packs)
         if (field === 'cantidad' && Number(value) > 0) {
+          const oldPrecioUnitario = item.precioUnitario || item.precioNeto || 1;
+          const taxRate = (item.impuestosAdicionales || 0) / oldPrecioUnitario;
+
           if (item.subtotalNeto && item.subtotalNeto > 0) {
             // El costo unitario se recalcula dividiendo el total neto por las nuevas unidades
-            updatedItem.precioUnitario = item.subtotalNeto / Number(value);
+            const newPrecioUnitario = item.subtotalNeto / Number(value);
+            updatedItem.precioUnitario = newPrecioUnitario;
+            
+            // Recalcular impuesto unitario manteniendo la tasa para no inflar el PCU
+            if (taxRate > 0) {
+              updatedItem.impuestosAdicionales = newPrecioUnitario * taxRate;
+            }
           } else if (item.precioUnitario && item.precioUnitario > 0) {
             // Fallback para filas manuales: actualizar subtotal
             updatedItem.subtotalNeto = Number(value) * item.precioUnitario;

@@ -173,9 +173,9 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
         items.forEach((item: any) => {
           const name = (item.nombre || '').toUpperCase();
           if (name.includes('SIN ALCOHOL')) {
-            item.impuestosAdicionales = (item.precioUnitario || item.precioNeto || 0) * 0.10;
+            item.impuestosAdicionales = (item.subtotalNeto || 0) * 0.10;
           } else if (!name.includes('DELIVERY') && !name.includes('FLETE')) {
-            item.impuestosAdicionales = (item.precioUnitario || item.precioNeto || 0) * 0.205;
+            item.impuestosAdicionales = (item.subtotalNeto || 0) * 0.205;
           }
         });
 
@@ -204,6 +204,15 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
           }
         }
       }
+
+      // Normalizar Impuestos Adicionales: Convertir a valor unitario para el frontend
+      items.forEach((item: any) => {
+        if (item.impuestosAdicionales && item.impuestosAdicionales > 0) {
+          const divisor = item.cantidad || 1;
+          item.impuestosAdicionales = item.impuestosAdicionales / divisor;
+          console.log(`Normalizado impuesto unitario para ${item.nombre}: ${item.impuestosAdicionales}`);
+        }
+      });
 
       const codigos = items.map(item => item.codigo).filter(c => c && c !== 'S/C');
       
