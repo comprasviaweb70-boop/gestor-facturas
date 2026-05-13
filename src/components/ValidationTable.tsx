@@ -185,7 +185,7 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
     const updatedItems = localItems.map(item => {
       const itemId = item.id || item.index;
       if (itemId === id) {
-        const updatedItem = { ...item, [field]: value, estadoRevisado: true };
+        const updatedItem = { ...item, [field]: value };
         
         // Recalcular precio unitario e impuesto si cambia la cantidad (regla de packs)
         if (field === 'cantidad' && Number(value) > 0) {
@@ -422,8 +422,8 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
                 <th scope="col" className="px-4 py-3">Producto</th>
                 <th scope="col" className="px-4 py-3">Cód. Prov.</th>
                 <th scope="col" className="px-4 py-3">Cant.</th>
-                <th scope="col" className="px-4 py-3">PCU / IABA</th>
-                <th scope="col" className="px-4 py-3">PVU (1.785)</th>
+                <th scope="col" className="px-4 py-3">PCU</th>
+                <th scope="col" className="px-4 py-3">Subtotal</th>
                 <th scope="col" className="px-4 py-3">Escanear Barra</th>
                 <th scope="col" className="px-4 py-3">SKU Bsale</th>
                 <th scope="col" className="px-4 py-3">Acciones</th>
@@ -435,19 +435,12 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
                 return (
                   <tr key={id} className="bg-white border-b hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-gray-900">
-                      <div className="flex flex-col">
-                        {!item.estadoRevisado && (
-                          <span className="text-[10px] font-bold text-orange-600 bg-orange-100 px-2 py-0.5 rounded w-fit mb-1">
-                            Pendiente de Revisión
-                          </span>
-                        )}
-                        <textarea
-                          value={item.nombre || item.product_name || ''}
-                          onChange={(e) => handleUpdateItem(id, 'nombre', e.target.value)}
-                          className={`w-full border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary resize-y ${!item.estadoRevisado ? 'bg-orange-50/50' : ''}`}
-                          rows={2}
-                        />
-                      </div>
+                      <textarea
+                        value={item.nombre || item.product_name || ''}
+                        onChange={(e) => handleUpdateItem(id, 'nombre', e.target.value)}
+                        className="w-full border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary resize-y"
+                        rows={2}
+                      />
                     </td>
                     <td className="px-4 py-3">
                       <input
@@ -488,21 +481,11 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
                         </div>
                       )}
                       <div className="text-xs text-primary font-medium mt-1">
-                        PCU: ${Math.round(item.pcu_calculado || ((item.precioUnitario || item.precioNeto || 0) + ((item.impuestosAdicionales || 0) / (item.cantidad || 1)))).toLocaleString('es-CL')}
+                        PCU: ${Math.round((item.precioUnitario || item.precioNeto || 0) + (item.impuestosAdicionales || 0) + (item.deliveryUnitario || 0)).toLocaleString('es-CL')}
                       </div>
-                      {item.impuestosAdicionales > 0 && (
-                        <div className="text-xs text-red-500 font-medium mt-0.5">
-                          IABA: ${Math.round(item.impuestosAdicionales).toLocaleString('es-CL')} (Total)
-                        </div>
-                      )}
                     </td>
                     <td className="px-4 py-3 font-medium text-gray-900">
-                      <div className="text-sm text-green-600">
-                        PVU: ${Math.round(item.pvu || ((item.pcu_calculado || ((item.precioUnitario || item.precioNeto || 0) + ((item.impuestosAdicionales || 0) / (item.cantidad || 1)))) * 1.785)).toLocaleString('es-CL')}
-                      </div>
-                      <div className="text-xs text-gray-400 mt-1">
-                        Subtotal: ${Math.round((item.cantidad || 0) * (item.precioUnitario || item.precioNeto || 0)).toLocaleString('es-CL')}
-                      </div>
+                      ${Math.round((item.cantidad || 0) * (item.precioUnitario || item.precioNeto || 0)).toLocaleString('es-CL')}
                     </td>
                     <td className="px-4 py-3">
                       <input

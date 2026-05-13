@@ -1,6 +1,6 @@
+import Anthropic from '@anthropic-ai/sdk';
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export async function POST(request: Request) {
   try {
@@ -10,54 +10,64 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Falta el contenido del XML' }, { status: 400 });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
-      return NextResponse.json({ error: 'API Key de Gemini no configurada' }, { status: 500 });
+      return NextResponse.json({ error: 'API Key de Anthropic no configurada' }, { status: 500 });
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    // Asumimos Gemini 1.5 Flash o la versión disponible más reciente que corresponda a "Gemini 3 Flash"
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const anthropic = new Anthropic({ apiKey });
 
-    const systemPrompt = `Eres un analista de datos. Analiza el siguiente texto XML de una factura electrónica chilena. Extrae el RUT y Nombre del proveedor. Extrae el detalle de cada producto: Código/SKU, Nombre, Cantidad y Costo Neto. Identifica y desagrega el impuesto IABA o ILA por línea si existe. Calcula el PCU (Precio Costo Unitario = Neto + Impuestos). Finalmente, calcula un PVU (Precio Venta Unitario) multiplicando el PCU por el margen exacto de 1.785. 
+    const systemPrompt = `Actúa como un experto en facturación electrónica chilena (DTE). Analiza este XML y extrae exclusivamente los siguientes datos en formato JSON:
 
-Devuelve el resultado estrictamente como un objeto JSON con la siguiente estructura (para mantener compatibilidad con el sistema):
 {
-  "rutEmisor": "RUT del proveedor",
+  "rutEmisor": "RUT del Emisor (etiqueta <RUTEmisor>)",
   "folio": "Folio de la factura",
-  "razonSocial": "Nombre del proveedor",
+  "razonSocial": "Razón Social del Emisor",
   "items": [
     {
-      "codigo": "Código/SKU",
       "nombre": "Nombre del producto",
+      "codigo": "Código del proveedor (VlrCodigo)",
       "cantidad": 1,
-      "subtotalNeto": 100,
-      "impuestosAdicionales": 0,
       "precioUnitario": 100,
-      "pcu_calculado": 100,
-      "pvu": 178.5
+      "subtotalNeto": 100,
+      "impuestosAdicionales": 0
     }
   ]
 }
 
-Reglas:
-- Si el código no viene explícito, intenta derivarlo de la descripción o marca 'S/C'.
-- Para 'impuestosAdicionales', extrae el monto total de IABA/ILA aplicado a ese ítem. Si no hay, pon 0.
-- El campo 'precioUnitario' debe contener el Costo Neto Unitario (subtotalNeto / cantidad).
-- El campo 'pcu_calculado' debe ser el Precio Costo Unitario Final (Costo Neto Unitario + Impuesto Unitario).
-- Devuelve ÚNICAMENTE JSON válido, sin bloques de código ni markdown.`;
+Regla crítica: 
+- \`precioUnitario\` DEBE ser el precio neto unitario (etiqueta <PrcItem>). NO uses el monto total del ítem.
+- \`subtotalNeto\` DEBE ser el monto total neto del ítem (etiqueta <MontoItem> o Cantidad * Precio Unitario).
+- Si el código del proveedor no viene explícito, intenta derivarlo de la descripción o marca 'S/C'. No inventes datos.
+- Para 'impuestosAdicionales', extrae el monto total de impuestos adicionales aplicados a ese ítem. Si no hay, pon 0.
 
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\nXML a analizar:\n${xmlContent}` }] }],
-      generationConfig: {
-        temperature: 0,
-        responseMimeType: "application/json",
-      }
+Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explicaciones, sin bloques de código markdown. El primer carácter de tu respuesta debe ser { y el último }.`;
+
+    const result = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 4000,
+      temperature: 0,
+      system: [
+        {
+          type: "text",
+          text: systemPrompt,
+          // @ts-ignore
+          cache_control: { type: "ephemeral" }
+        }
+      ],
+      messages: [
+        {
+          role: "user",
+          content: `XML a analizar:\n${xmlContent}`
+        }
+      ]
+    }, { 
+      headers: { 'anthropic-beta': 'prompt-caching-2024-07-31' } // Requerido para usar prompt caching
     });
     
-    const text = result.response.text();
+    const text = result.content[0].type === 'text' ? result.content[0].text : '';
     
-    // Intentar extraer el JSON del texto por seguridad
+    // Intentar extraer el JSON del texto
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     const jsonText = jsonMatch ? jsonMatch[0] : text;
     
@@ -65,7 +75,7 @@ Reglas:
     try {
       data = JSON.parse(jsonText);
     } catch (e) {
-      console.error('Failed to parse JSON from Gemini. Raw text:', text);
+      console.error('Failed to parse JSON from Claude. Raw text:', text);
       return NextResponse.json({ 
         error: 'El análisis de la factura no generó un resultado válido.', 
         details: text.substring(0, 100) 
