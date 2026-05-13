@@ -447,7 +447,7 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
                         type="text"
                         value={item.codigo || item.supplier_code || ''}
                         onChange={(e) => handleUpdateItem(id, 'codigo', e.target.value)}
-                        className="w-24 border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
+                        className="w-48 border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
                       />
                     </td>
                     <td className="px-4 py-3">
