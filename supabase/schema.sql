@@ -32,3 +32,30 @@ CREATE TABLE IF NOT EXISTS validation_queue (
     status TEXT DEFAULT 'SIN_MAPEAR',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Table: proveedores
+CREATE TABLE IF NOT EXISTS proveedores (
+    id BIGSERIAL PRIMARY KEY,
+    rut TEXT UNIQUE NOT NULL,
+    nombre TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- RLS Policies for proveedores
+ALTER TABLE proveedores ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Permitir lectura pública de proveedores" 
+ON proveedores FOR SELECT 
+TO public
+USING (true);
+
+CREATE POLICY "Permitir inserción pública de proveedores" 
+ON proveedores FOR INSERT 
+TO public
+WITH CHECK (true);
+
+CREATE POLICY "Permitir actualización pública de proveedores" 
+ON proveedores FOR UPDATE 
+TO public
+USING (true)
+WITH CHECK (true);
