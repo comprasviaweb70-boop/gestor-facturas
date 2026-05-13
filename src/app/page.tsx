@@ -146,6 +146,7 @@ export default function Home() {
       // Datos
       let currentRow = 5;
       let grandTotal = 0;
+      let totalTaxes = 0;
       if (extractedData.items) {
         for (const item of extractedData.items) {
           const row = worksheet.getRow(currentRow);
@@ -155,14 +156,17 @@ export default function Home() {
           const pcu = (item.precioUnitario || item.precioNeto || 0) + (item.impuestosAdicionales || 0) + (item.deliveryUnitario || 0);
           const totalItem = (item.cantidad || 0) * pcu;
           const pvu = pcu * (1 + margin / 100) * 1.19;
+          const itemTax = Math.round((item.impuestosAdicionales || 0) * (item.cantidad || 0));
+          
           grandTotal += totalItem;
+          totalTaxes += itemTax;
 
           row.values = [
             extractedData.folio || 'S/F',
             sku,
             item.cantidad || 0,
             pcu,
-            item.impuestosAdicionales || 0,
+            itemTax,
             totalItem,
             pvu
           ];
@@ -179,9 +183,16 @@ export default function Home() {
 
       // Fila de totales
       const totalRow = worksheet.getRow(currentRow);
-      totalRow.getCell(5).value = 'TOTAL:';
+      totalRow.getCell(3).value = 'TOTALES:';
+      totalRow.getCell(3).font = { bold: true };
+      totalRow.getCell(3).alignment = { horizontal: 'right' };
+      
+      // Suma de Impuestos Adicionales
+      totalRow.getCell(5).value = totalTaxes;
+      totalRow.getCell(5).numFmt = '"$"#,##0';
       totalRow.getCell(5).font = { bold: true };
-      totalRow.getCell(5).alignment = { horizontal: 'right' };
+      
+      // Suma de Totales (PCU * Unidades)
       totalRow.getCell(6).value = grandTotal;
       totalRow.getCell(6).numFmt = '"$"#,##0';
       totalRow.getCell(6).font = { bold: true };
