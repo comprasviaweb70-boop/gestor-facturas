@@ -2,59 +2,33 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const id = searchParams.get('id');
+  const id = searchParams.get('id'); // now this will often be the urlXml
   const token = process.env.BSALE_ACCESS_TOKEN;
   
   if (!id) {
-    return NextResponse.json({ error: 'Se requiere el ID del DTE' }, { status: 400 });
+    return NextResponse.json({ error: 'Se requiere la URL o ID del XML' }, { status: 400 });
   }
   
   try {
     if (!token || token === 'ejemplo_temporal') {
-      console.log(`Modo simulación XML para DTE ID: ${id}`);
-      // XML simulado básico
-      const simXml = `<?xml version="1.0" encoding="ISO-8859-1"?>
-<DTE xmlns="http://www.sii.cl/SiiDte" version="1.0">
-  <Documento ID="F${id}T33">
-    <Encabezado>
-      <IdDoc>
-        <TipoDTE>33</TipoDTE>
-        <Folio>${id === '1' ? '1001' : '1002'}</Folio>
-        <FchEmis>2026-05-10</FchEmis>
-      </IdDoc>
-      <Emisor>
-        <RUTEmisor>${id === '1' ? '81094100-6' : '76123456-7'}</RUTEmisor>
-        <RznSoc>${id === '1' ? 'COLUN' : 'Distribuidora Sur'}</RznSoc>
-      </Emisor>
-      <Receptor>
-        <RUTRecep>77777777-7</RUTRecep>
-        <RznSocRecep>Emporio Iciz</RznSocRecep>
-      </Receptor>
-      <Totales>
-        <MntNeto>100000</MntNeto>
-        <IVA>19000</IVA>
-        <MntTotal>119000</MntTotal>
-      </Totales>
-    </Encabezado>
-    <Detalle>
-      <NroLinDR>1</NroLinDR>
-      <CdgItem>
-        <TpoCodigo>INT</TpoCodigo>
-        <VlrCodigo>2801798</VlrCodigo>
-      </CdgItem>
-      <NmbItem>Producto Simulado ${id}</NmbItem>
-      <QtyItem>10</QtyItem>
-      <PrcItem>10000</PrcItem>
-      <MntItem>100000</MntItem>
-    </Detalle>
-  </Documento>
-</DTE>`;
+      return NextResponse.json({ error: 'Para conectar con Bsale, debes configurar el token real en Vercel.' }, { status: 401 });
+    }
+
+    // Si el ID es directamente la URL del XML (como viene en urlXml de third_party_documents)
+    if (id.startsWith('http')) {
+      const res = await fetch(id);
       
-      return new Response(simXml, {
+      if (!res.ok) {
+        throw new Error(`Error HTTP al obtener XML desde URL: ${res.status}`);
+      }
+      
+      const xmlText = await res.text();
+      
+      return new Response(xmlText, {
         headers: { 'Content-Type': 'application/xml' }
       });
     } else {
-      // Consulta real a Bsale usando el endpoint para XML de facturas de compra
+      // Fallback para ID numérico
       const res = await fetch(`https://api.bsale.cl/v1/purchase_invoices/${id}/xml.json`, {
         headers: {
           'access_token': token,
@@ -67,8 +41,6 @@ export async function GET(request: Request) {
       }
       
       const data = await res.json();
-      
-      // Bsale devuelve el XML en un campo llamado 'xml'
       const xmlContent = data.xml || data;
       
       return new Response(xmlContent, {
