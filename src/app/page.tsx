@@ -172,7 +172,7 @@ export default function Home() {
           ];
 
           // Formato numérico para precios
-          row.getCell(4).numFmt = '"$"#,##0'; // PCU
+          row.getCell(4).numFmt = '0'; // PCU (Formato Número puro)
           row.getCell(5).numFmt = '"$"#,##0'; // Imp. Adic.
           row.getCell(6).numFmt = '"$"#,##0'; // Total
           row.getCell(7).numFmt = '"$"#,##0'; // PVU
