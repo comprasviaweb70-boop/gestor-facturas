@@ -99,7 +99,7 @@ export default function Home() {
       worksheet.getCell('A2').font = { bold: true };
 
       // Fila 4: Headers con nueva columna Total
-      const headers = ['N° Factura', 'SKU', 'Stock', 'PCU', 'Total', 'PVU'];
+      const headers = ['N° Factura', 'SKU', 'Stock', 'PCU', 'Imp. Adic.', 'Total', 'PVU'];
       const headerRow = worksheet.getRow(4);
       headerRow.values = headers;
 
@@ -162,14 +162,16 @@ export default function Home() {
             sku,
             item.cantidad || 0,
             pcu,
+            item.impuestosAdicionales || 0,
             totalItem,
             pvu
           ];
 
           // Formato numérico para precios
-          row.getCell(4).numFmt = '"$"#,##0';
-          row.getCell(5).numFmt = '"$"#,##0';
-          row.getCell(6).numFmt = '"$"#,##0';
+          row.getCell(4).numFmt = '"$"#,##0'; // PCU
+          row.getCell(5).numFmt = '"$"#,##0'; // Imp. Adic.
+          row.getCell(6).numFmt = '"$"#,##0'; // Total
+          row.getCell(7).numFmt = '"$"#,##0'; // PVU
 
           currentRow++;
         }
@@ -177,13 +179,13 @@ export default function Home() {
 
       // Fila de totales
       const totalRow = worksheet.getRow(currentRow);
-      totalRow.getCell(4).value = 'TOTAL:';
-      totalRow.getCell(4).font = { bold: true };
-      totalRow.getCell(4).alignment = { horizontal: 'right' };
-      totalRow.getCell(5).value = grandTotal;
-      totalRow.getCell(5).numFmt = '"$"#,##0';
+      totalRow.getCell(5).value = 'TOTAL:';
       totalRow.getCell(5).font = { bold: true };
-      totalRow.getCell(5).fill = {
+      totalRow.getCell(5).alignment = { horizontal: 'right' };
+      totalRow.getCell(6).value = grandTotal;
+      totalRow.getCell(6).numFmt = '"$"#,##0';
+      totalRow.getCell(6).font = { bold: true };
+      totalRow.getCell(6).fill = {
         type: 'pattern',
         pattern: 'solid',
         fgColor: { argb: 'FFE8F0FE' }

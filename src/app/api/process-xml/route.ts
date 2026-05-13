@@ -146,21 +146,55 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
           .select('product_type, tax_percentage');
 
         if (!taxError && taxRates) {
-          items.forEach((item: any) => {
-            if (!item.impuestosAdicionales || item.impuestosAdicionales === 0) {
+          // Regla específica para HIPERKOR (RUT: 78753810-K) - Valores vienen en Bruto
+          if (rutEmisor === '78753810-K') {
+            items.forEach((item: any) => {
               const nombreUpper = (item.nombre || '').toUpperCase();
-              
+              let taxPercentage = 0;
+
               for (const rate of taxRates) {
                 const keyword = (rate.product_type || '').trim().toUpperCase();
                 if (keyword && nombreUpper.includes(keyword)) {
-                  const porcentaje = rate.tax_percentage / 100;
-                  item.impuestosAdicionales = Math.round((item.subtotalNeto || 0) * porcentaje);
-                  console.log(`Aplicado impuesto ${rate.product_type} (${rate.tax_percentage}%) a ${item.nombre}: ${item.impuestosAdicionales}`);
-                  break; // Aplicar solo el primero que coincida
+                  taxPercentage = rate.tax_percentage / 100;
+                  break;
                 }
               }
-            }
-          });
+
+              // Fallback específico para bebidas/cervezas en Hiperkor si no se detectó
+              if (taxPercentage === 0 && (nombreUpper.includes('CERVEZA') || nombreUpper.includes('BEBIDA') || nombreUpper.includes('STELLA'))) {
+                taxPercentage = 0.205;
+              }
+
+              const grossValue = item.subtotalNeto || ((item.cantidad || 1) * (item.precioUnitario || 0));
+              
+              // Fórmula: Neto = Bruto / (1 + IVA + IMPTO_ADIC)
+              const factor = 1 + 0.19 + taxPercentage;
+              const netValue = grossValue / factor;
+              
+              item.subtotalNeto = netValue;
+              item.precioUnitario = netValue / (item.cantidad || 1);
+              item.impuestosAdicionales = netValue * taxPercentage; // Total tax for the line
+              
+              console.log(`HIPERKOR: ${item.nombre} -> Bruto: ${grossValue}, Neto: ${netValue}, AddTax: ${item.impuestosAdicionales}`);
+            });
+          } else {
+            // Caso General: Auto-detectar impuestos adicionales por nombre si vienen en 0
+            items.forEach((item: any) => {
+              if (!item.impuestosAdicionales || item.impuestosAdicionales === 0) {
+                const nombreUpper = (item.nombre || '').toUpperCase();
+                
+                for (const rate of taxRates) {
+                  const keyword = (rate.product_type || '').trim().toUpperCase();
+                  if (keyword && nombreUpper.includes(keyword)) {
+                    const porcentaje = rate.tax_percentage / 100;
+                    item.impuestosAdicionales = Math.round((item.subtotalNeto || 0) * porcentaje);
+                    console.log(`Aplicado impuesto ${rate.product_type} (${rate.tax_percentage}%) a ${item.nombre}: ${item.impuestosAdicionales}`);
+                    break; // Aplicar solo el primero que coincida
+                  }
+                }
+              }
+            });
+          }
         }
       } catch (e) {
         console.error('Error in tax auto-detection:', e);
