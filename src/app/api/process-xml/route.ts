@@ -165,6 +165,11 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
                 taxPercentage = 0.205;
               }
 
+              // Regla especial Hiperkor: Aplican erróneamente 10% a Aguas Minerales
+              if (nombreUpper.includes('AGUA')) {
+                taxPercentage = 0.10;
+              }
+
               const grossValue = item.subtotalNeto || ((item.cantidad || 1) * (item.precioUnitario || 0));
               
               // Fórmula: Neto = Bruto / (1 + IVA + IMPTO_ADIC)
