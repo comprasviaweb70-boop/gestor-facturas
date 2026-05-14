@@ -176,7 +176,7 @@ export default function EquivalenceManager() {
                 placeholder="Buscar por SKU, código proveedor, nombre o RUT..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-800 placeholder-gray-600 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
               />
             </div>
             
@@ -209,7 +209,7 @@ export default function EquivalenceManager() {
                     }
                   }
                 }}
-                className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-gray-50"
+                className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-800 placeholder-gray-600 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-gray-50"
               />
             </div>
 
