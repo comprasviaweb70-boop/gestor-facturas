@@ -185,29 +185,7 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
     const updatedItems = localItems.map(item => {
       const itemId = item.id || item.index;
       if (itemId === id) {
-        const updatedItem = { ...item, [field]: value };
-        
-        // Recalcular precio unitario e impuesto si cambia la cantidad (regla de packs)
-        if (field === 'cantidad' && Number(value) > 0) {
-          const oldPrecioUnitario = item.precioUnitario || item.precioNeto || 1;
-          const taxRate = (item.impuestosAdicionales || 0) / oldPrecioUnitario;
-
-          if (item.subtotalNeto && item.subtotalNeto > 0) {
-            // El costo unitario se recalcula dividiendo el total neto por las nuevas unidades
-            const newPrecioUnitario = item.subtotalNeto / Number(value);
-            updatedItem.precioUnitario = newPrecioUnitario;
-            
-            // Recalcular impuesto unitario manteniendo la tasa para no inflar el PCU
-            if (taxRate > 0) {
-              updatedItem.impuestosAdicionales = newPrecioUnitario * taxRate;
-            }
-          } else if (item.precioUnitario && item.precioUnitario > 0) {
-            // Fallback para filas manuales: actualizar subtotal
-            updatedItem.subtotalNeto = Number(value) * item.precioUnitario;
-          }
-        }
-        
-        return updatedItem;
+        return { ...item, [field]: value };
       }
       return item;
     });
@@ -342,7 +320,8 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
       cantidad: 1,
       precioUnitario: 0,
       subtotalNeto: 0,
-      impuestosAdicionales: 0
+      impuestosAdicionales: 0,
+      fleteTotal: 0
     };
     const updatedItems = [...localItems, newRow];
     setLocalItems(updatedItems);
@@ -417,22 +396,31 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
           <table className="w-full text-sm text-left text-gray-500">
             <thead className="text-xs text-white uppercase bg-primary">
               <tr>
-                <th scope="col" className="px-4 py-3">Producto</th>
-                <th scope="col" className="px-4 py-3">Cód. Prov.</th>
-                <th scope="col" className="px-4 py-3">Cant.</th>
-                <th scope="col" className="px-4 py-3">PCU</th>
-                <th scope="col" className="px-4 py-3">Subtotal</th>
-                <th scope="col" className="px-4 py-3">Escanear Barra</th>
-                <th scope="col" className="px-4 py-3">SKU Bsale</th>
-                <th scope="col" className="px-4 py-3">Acciones</th>
+                <th scope="col" className="px-3 py-3">Producto</th>
+                <th scope="col" className="px-3 py-3">Cód. Prov.</th>
+                <th scope="col" className="px-3 py-3 text-center">Cant.</th>
+                <th scope="col" className="px-3 py-3 text-right">Subtotal Neto</th>
+                <th scope="col" className="px-3 py-3 text-right">Impto. Adic.</th>
+                <th scope="col" className="px-3 py-3 text-right">Flete</th>
+                <th scope="col" className="px-3 py-3 text-right bg-primary/80">PCU</th>
+                <th scope="col" className="px-3 py-3">Escanear Barra</th>
+                <th scope="col" className="px-3 py-3">SKU Bsale</th>
+                <th scope="col" className="px-3 py-3">Acciones</th>
               </tr>
             </thead>
             <tbody>
               {displayItems.map((item, idx) => {
                 const id = item.id || item.index || idx;
+                const subtotalNeto = Number(item.subtotalNeto) || 0;
+                const imptoAdic = Number(item.impuestosAdicionales) || 0;
+                const flete = Number(item.fleteTotal) || 0;
+                const cantidad = Number(item.cantidad) || 1;
+                const pcu = (subtotalNeto + imptoAdic + flete) / cantidad;
+                
                 return (
                   <tr key={id} className="bg-white border-b hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-900">
+                    {/* Producto */}
+                    <td className="px-3 py-2 font-medium text-gray-900">
                       <textarea
                         value={item.nombre || item.product_name || ''}
                         onChange={(e) => handleUpdateItem(id, 'nombre', e.target.value)}
@@ -440,77 +428,97 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
                         rows={2}
                       />
                     </td>
-                    <td className="px-4 py-3">
+                    {/* Cód. Prov. */}
+                    <td className="px-3 py-2">
                       <input
                         type="text"
                         value={item.codigo || item.supplier_code || ''}
                         onChange={(e) => handleUpdateItem(id, 'codigo', e.target.value)}
-                        className="w-48 border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
+                        className="w-24 border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
                       />
                     </td>
-                    <td className="px-4 py-3">
+                    {/* Cantidad */}
+                    <td className="px-3 py-2 text-center">
                       <input
                         type="number"
                         step="any"
                         value={item.cantidad || 0}
                         onChange={(e) => handleUpdateItem(id, 'cantidad', Number(e.target.value))}
-                        className="w-16 border rounded-md px-2 py-1 text-sm"
+                        className="w-16 border rounded-md px-2 py-1 text-sm text-center"
                         min="0"
                       />
                       {item.unidadesPorPack && item.unidadesPorPack > 1 && (
                         <div className="text-xs text-orange-600 mt-1 font-medium" title="Detectado como pack/display">
                           Pack ×{item.unidadesPorPack}
-                          <div className="text-gray-500">Tot: {(item.cantidad || 0) * item.unidadesPorPack}</div>
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    {/* Subtotal Neto (editable) */}
+                    <td className="px-3 py-2 text-right">
                       <input
                         type="number"
                         step="any"
-                        value={item.precioUnitario || item.precioNeto || 0}
-                        onChange={(e) => handleUpdateItem(id, 'precioUnitario', Number(e.target.value))}
-                        className="w-24 border rounded-md px-2 py-1 text-sm"
+                        value={subtotalNeto}
+                        onChange={(e) => handleUpdateItem(id, 'subtotalNeto', Number(e.target.value))}
+                        className="w-24 border rounded-md px-2 py-1 text-sm text-right"
                         min="0"
                       />
-                      {item.deliveryUnitario && (
-                        <div className="text-xs text-orange-600 mt-1">
-                          +${Math.round(item.deliveryUnitario).toLocaleString('es-CL')} flete
-                        </div>
-                      )}
-                      <div className="text-xs text-primary font-medium mt-1">
-                        PCU: ${Math.round((item.precioUnitario || item.precioNeto || 0) + (item.impuestosAdicionales || 0) + (item.deliveryUnitario || 0)).toLocaleString('es-CL')}
-                      </div>
                     </td>
-                    <td className="px-4 py-3 font-medium text-gray-900">
-                      ${Math.round((item.cantidad || 0) * (item.precioUnitario || item.precioNeto || 0)).toLocaleString('es-CL')}
+                    {/* Impto. Adicional (editable) */}
+                    <td className="px-3 py-2 text-right">
+                      <input
+                        type="number"
+                        step="any"
+                        value={imptoAdic}
+                        onChange={(e) => handleUpdateItem(id, 'impuestosAdicionales', Number(e.target.value))}
+                        className="w-20 border rounded-md px-2 py-1 text-sm text-right"
+                        min="0"
+                      />
                     </td>
-                    <td className="px-4 py-3">
+                    {/* Flete (editable) */}
+                    <td className="px-3 py-2 text-right">
+                      <input
+                        type="number"
+                        step="any"
+                        value={flete}
+                        onChange={(e) => handleUpdateItem(id, 'fleteTotal', Number(e.target.value))}
+                        className="w-20 border rounded-md px-2 py-1 text-sm text-right"
+                        min="0"
+                      />
+                    </td>
+                    {/* PCU (calculado) */}
+                    <td className="px-3 py-2 text-right font-semibold text-primary">
+                      ${Math.round(pcu).toLocaleString('es-CL')}
+                    </td>
+                    {/* Escanear Barra */}
+                    <td className="px-3 py-2">
                       <input
                         type="text"
                         placeholder="Escanear..."
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             handleBarcodeScan(id, (e.target as HTMLInputElement).value);
-                            (e.target as HTMLInputElement).value = ''; // Limpiar después de escanear
+                            (e.target as HTMLInputElement).value = '';
                           }
                         }}
-                        className="w-32 border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
+                        className="w-28 border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
                       />
                     </td>
-                    <td className="px-4 py-3">
+                    {/* SKU Bsale */}
+                    <td className="px-3 py-2">
                       <input
                         type="text"
-                        placeholder="SKU Bsale"
+                        placeholder="SKU"
                         value={item.internal_sku || selectedSkus[id] || ''}
                         onChange={(e) => {
                           handleUpdateItem(id, 'internal_sku', e.target.value);
                           setSelectedSkus(prev => ({ ...prev, [id]: e.target.value }));
                         }}
-                        className="w-24 border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
+                        className="w-20 border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
                       />
                     </td>
-                    <td className="px-4 py-3 flex space-x-2">
+                    {/* Acciones */}
+                    <td className="px-3 py-2 flex space-x-1">
                       <button
                         onClick={() => handleBarcodeScan(id, selectedSkus[id] || '')}
                         className="p-1.5 text-primary hover:text-primary/80"

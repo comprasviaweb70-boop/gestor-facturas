@@ -247,6 +247,11 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
         console.log(`Pack Detection: ${item.nombre} -> Mult: ${multiplier}, Cantidad Real: ${item.cantidadReal}`);
       });
 
+      // Inicializar fleteTotal en 0 para todos los ítems
+      items.forEach((item: any) => {
+        item.fleteTotal = item.fleteTotal || 0;
+      });
+
       // Auto-detectar impuestos adicionales por nombre si vienen en 0
       try {
         const { data: taxRates, error: taxError } = await supabase
@@ -352,21 +357,16 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
             const deliveryUnitario = totalDelivery / totalUnits;
             console.log(`MAD CHARLIES: Distribuyendo ${totalDelivery} de flete entre ${totalUnits} unidades. Delivery unitario: ${deliveryUnitario}`);
             
+            // Asignar fleteTotal por línea = deliveryUnitario × cantidad del ítem
             items.forEach((item: any) => {
-              item.deliveryUnitario = deliveryUnitario;
+              item.fleteTotal = deliveryUnitario * (item.cantidad || 1);
             });
           }
         }
       }
 
-      // Normalizar Impuestos Adicionales: Convertir a valor unitario para el frontend
-      items.forEach((item: any) => {
-        if (item.impuestosAdicionales && item.impuestosAdicionales > 0) {
-          const divisor = item.cantidad || 1;
-          item.impuestosAdicionales = item.impuestosAdicionales / divisor;
-          console.log(`Normalizado impuesto unitario para ${item.nombre}: ${item.impuestosAdicionales}`);
-        }
-      });
+      // Nota: impuestosAdicionales se mantiene como TOTAL por línea (no se normaliza a unitario)
+      // El PCU se calcula en el frontend: (subtotalNeto + impuestosAdicionales + fleteTotal) / cantidad
 
       const codigos = items.map(item => item.codigo).filter(c => c && c !== 'S/C');
       

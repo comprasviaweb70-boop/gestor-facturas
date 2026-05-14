@@ -99,8 +99,8 @@ export default function Home() {
       worksheet.getCell('B2').value = rut || 'No especificado';
       worksheet.getCell('A2').font = { bold: true };
 
-      // Fila 4: Headers con nueva columna Total
-      const headers = ['N° Factura', 'SKU', 'Stock', 'PCU', 'Imp. Adic.', 'Total', 'PVU'];
+      // Fila 4: Headers con nueva estructura de columnas
+      const headers = ['N° Factura', 'SKU', 'Stock', 'Subtotal Neto', 'Impto. Adic.', 'Flete', 'PCU', 'Total', 'PVU'];
       const headerRow = worksheet.getRow(4);
       headerRow.values = headers;
 
@@ -148,35 +148,46 @@ export default function Home() {
       let currentRow = 5;
       let grandTotal = 0;
       let totalTaxes = 0;
+      let totalFlete = 0;
+
       if (extractedData.items) {
         for (const item of extractedData.items) {
           const row = worksheet.getRow(currentRow);
           
           const sku = item.internal_sku || equivalences[item.codigo] || 'SIN MATCH';
-          // Usamos precioUnitario que ahora viene explícito del análisis de Claude
-          const pcu = (item.precioUnitario || item.precioNeto || 0) + (item.impuestosAdicionales || 0) + (item.deliveryUnitario || 0);
-          const totalItem = (item.cantidad || 0) * pcu;
+          const subtotalNeto = Number(item.subtotalNeto) || 0;
+          const imptoAdic = Number(item.impuestosAdicionales) || 0;
+          const flete = Number(item.fleteTotal) || 0;
+          const cantidad = Number(item.cantidad) || 1;
+          
+          // PCU = (Subtotal Neto + Impto. Adic. + Flete) / Cantidad
+          const pcu = (subtotalNeto + imptoAdic + flete) / cantidad;
+          const totalItem = subtotalNeto + imptoAdic + flete;
           const pvu = pcu * (1 + margin / 100) * 1.19;
-          const itemTax = Math.round((item.impuestosAdicionales || 0) * (item.cantidad || 0));
           
           grandTotal += totalItem;
-          totalTaxes += itemTax;
+          totalTaxes += imptoAdic;
+          totalFlete += flete;
 
           row.values = [
             extractedData.folio || 'S/F',
             sku,
             item.cantidad || 0,
+            subtotalNeto,
+            imptoAdic,
+            flete,
             pcu,
-            itemTax,
             totalItem,
             pvu
           ];
 
           // Formato numérico para precios
-          row.getCell(4).numFmt = '0'; // PCU (Formato Número puro)
-          row.getCell(5).numFmt = '"$"#,##0'; // Imp. Adic.
-          row.getCell(6).numFmt = '"$"#,##0'; // Total
-          row.getCell(7).numFmt = '"$"#,##0'; // PVU
+          row.getCell(4).numFmt = '"$"#,##0';   // Subtotal Neto
+          row.getCell(5).numFmt = '"$"#,##0';   // Imp. Adic.
+          row.getCell(6).numFmt = '"$"#,##0';   // Flete
+          row.getCell(7).numFmt = '0';          // PCU (Número puro)
+          row.getCell(8).numFmt = '"$"#,##0';   // Total
+          row.getCell(9).numFmt = '"$"#,##0';   // PVU
 
           currentRow++;
         }
@@ -188,16 +199,26 @@ export default function Home() {
       totalRow.getCell(3).font = { bold: true };
       totalRow.getCell(3).alignment = { horizontal: 'right' };
       
+      // Suma de Subtotales Netos
+      totalRow.getCell(4).value = extractedData.items?.reduce((acc: number, i: any) => acc + (Number(i.subtotalNeto) || 0), 0) || 0;
+      totalRow.getCell(4).numFmt = '"$"#,##0';
+      totalRow.getCell(4).font = { bold: true };
+      
       // Suma de Impuestos Adicionales
       totalRow.getCell(5).value = totalTaxes;
       totalRow.getCell(5).numFmt = '"$"#,##0';
       totalRow.getCell(5).font = { bold: true };
       
-      // Suma de Totales (PCU * Unidades)
-      totalRow.getCell(6).value = grandTotal;
+      // Suma de Fletes
+      totalRow.getCell(6).value = totalFlete;
       totalRow.getCell(6).numFmt = '"$"#,##0';
       totalRow.getCell(6).font = { bold: true };
-      totalRow.getCell(6).fill = {
+      
+      // Total general (Subtotal + Impto + Flete)
+      totalRow.getCell(8).value = grandTotal;
+      totalRow.getCell(8).numFmt = '"$"#,##0';
+      totalRow.getCell(8).font = { bold: true };
+      totalRow.getCell(8).fill = {
         type: 'pattern',
         pattern: 'solid',
         fgColor: { argb: 'FFE8F0FE' }
