@@ -79,40 +79,60 @@ export async function GET(request: Request) {
     });
   }
 
-  // Petición GET pura al listado con filtros documentados (año, mes, tipo)
-  const url = 'https://api.bsale.cl/v1/third_party_documents.json?limit=3&year=2026&month=5&codesii=33';
-
+  // Obtener TODOS los documentos de mayo 2026 tipo 33 con paginación
+  const baseUrl = 'https://api.bsale.cl/v1/third_party_documents.json?limit=50&year=2026&month=5&codesii=33';
+  
   try {
-    const res = await fetch(url, {
-      headers: {
-        'access_token': token,
-        'Accept': 'application/json',
-      },
-    });
+    const allItems: any[] = [];
+    let offset = 0;
+    let totalCount = 0;
 
-    const rawBody = await res.text();
-
-    let parsedJson = null;
-    try {
-      parsedJson = JSON.parse(rawBody);
-    } catch {
-      // Si no es JSON válido, lo dejamos como texto
+    // Paginar para traer todos
+    while (true) {
+      const url = `${baseUrl}&offset=${offset}`;
+      const res = await fetch(url, {
+        headers: { 'access_token': token, 'Accept': 'application/json' },
+      });
+      const data = await res.json();
+      totalCount = data.count || 0;
+      if (data.items) allItems.push(...data.items);
+      if (!data.next || allItems.length >= totalCount) break;
+      offset += 50;
     }
+
+    // Analizar distribución de siiStatus
+    const statusDistribution: { [key: string]: number } = {};
+    const statusExamples: { [key: string]: any[] } = {};
+
+    allItems.forEach((doc: any) => {
+      const statusKey = JSON.stringify(doc.siiStatus || []);
+      statusDistribution[statusKey] = (statusDistribution[statusKey] || 0) + 1;
+      if (!statusExamples[statusKey] || statusExamples[statusKey].length < 2) {
+        if (!statusExamples[statusKey]) statusExamples[statusKey] = [];
+        statusExamples[statusKey].push({
+          id: doc.id,
+          number: doc.number,
+          clientCode: doc.clientCode,
+          clientActivity: doc.clientActivity,
+          emissionDate: new Date(doc.emissionDate * 1000).toLocaleDateString('es-CL'),
+          totalAmount: doc.totalAmount,
+          siiStatus: doc.siiStatus,
+        });
+      }
+    });
 
     return NextResponse.json({
       diagnóstico: {
-        url_consultada: url,
-        http_status: res.status,
-        http_ok: res.ok,
+        totalDocumentos: totalCount,
+        documentosTraidos: allItems.length,
         tokenPreview,
-        content_type: res.headers.get('content-type'),
       },
-      raw_response: parsedJson || rawBody,
+      distribucionEstados: statusDistribution,
+      ejemplosPorEstado: statusExamples,
     });
   } catch (error: any) {
     return NextResponse.json({
       diagnóstico: 'ERROR DE RED',
-      url_consultada: url,
       tokenPreview,
       error: error.message,
     }, { status: 500 });
