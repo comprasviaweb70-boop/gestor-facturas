@@ -1,11 +1,20 @@
 'use client';
 
 import { useState } from 'react';
-import { UploadCloud, FileText, Loader2 } from 'lucide-react';
+import { UploadCloud, FileText, Loader2, FileImage, FileSpreadsheet } from 'lucide-react';
 
 interface UploadModuleProps {
   onDataExtracted: (data: any) => void;
 }
+
+const ALLOWED_EXTENSIONS = ['xml', 'pdf', 'jpg', 'jpeg', 'png'];
+const MIME_TYPES: Record<string, string> = {
+  'pdf': 'application/pdf',
+  'jpg': 'image/jpeg',
+  'jpeg': 'image/jpeg',
+  'png': 'image/png',
+};
+const MAX_FILE_SIZE_MB = 4; // Límite para PDF/imágenes (base64 overhead + Vercel limit)
 
 export default function UploadModule({ onDataExtracted }: UploadModuleProps) {
   const [isDragging, setIsDragging] = useState(false);
@@ -38,9 +47,30 @@ export default function UploadModule({ onDataExtracted }: UploadModuleProps) {
     }
   };
 
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Remover prefijo "data:...;base64,"
+        resolve(result.split(',')[1]);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
   const processFile = async (file: File) => {
-    if (!file.name.endsWith('.xml')) {
-      alert('Por favor, carga un archivo XML válido.');
+    const extension = file.name.split('.').pop()?.toLowerCase() || '';
+
+    if (!ALLOWED_EXTENSIONS.includes(extension)) {
+      alert('Formatos soportados: XML, PDF, JPG, PNG');
+      return;
+    }
+
+    // Límite de tamaño para PDF/imágenes
+    if (extension !== 'xml' && file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+      alert(`El archivo es demasiado grande. Máximo ${MAX_FILE_SIZE_MB}MB para PDF e imágenes.`);
       return;
     }
 
@@ -48,15 +78,27 @@ export default function UploadModule({ onDataExtracted }: UploadModuleProps) {
     setIsLoading(true);
 
     try {
-      const text = await file.text();
-      
-      // Llamar a la API para procesar el XML con Gemini
+      let requestBody: any;
+
+      if (extension === 'xml') {
+        // Flujo XML existente
+        const text = await file.text();
+        requestBody = { xmlContent: text };
+      } else {
+        // Flujo PDF/Imagen — convertir a base64
+        const base64 = await fileToBase64(file);
+        requestBody = {
+          fileBase64: base64,
+          fileType: MIME_TYPES[extension],
+        };
+      }
+
       const response = await fetch('/api/process-xml', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ xmlContent: text }),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await response.json();
@@ -78,9 +120,17 @@ export default function UploadModule({ onDataExtracted }: UploadModuleProps) {
     }
   };
 
+  const getFileIcon = () => {
+    if (!fileName) return null;
+    const ext = fileName.split('.').pop()?.toLowerCase() || '';
+    if (ext === 'pdf') return <FileSpreadsheet className="h-12 w-12 text-red-500" />;
+    if (['jpg', 'jpeg', 'png'].includes(ext)) return <FileImage className="h-12 w-12 text-green-600" />;
+    return <FileText className="h-12 w-12 text-primary" />;
+  };
+
   return (
     <div className="w-full max-w-4xl mx-auto p-6 bg-white rounded-xl shadow-sm border border-gray-100">
-      <h2 className="text-xl font-semibold text-primary mb-4">Carga de Factura XML</h2>
+      <h2 className="text-xl font-semibold text-primary mb-4">Carga Manual de Factura</h2>
       
       <div
         onDragOver={handleDragOver}
@@ -95,28 +145,32 @@ export default function UploadModule({ onDataExtracted }: UploadModuleProps) {
           id="file-upload"
           type="file"
           className="hidden"
-          accept=".xml"
+          accept=".xml,.pdf,.jpg,.jpeg,.png"
           onChange={handleFileChange}
         />
         
         {isLoading ? (
           <div className="flex flex-col items-center space-y-4">
             <Loader2 className="h-10 w-10 animate-spin text-action" />
-            <p className="text-sm font-medium text-gray-600">Claude procesando XML...</p>
+            <p className="text-sm font-medium text-gray-600">Claude procesando documento...</p>
           </div>
         ) : (
           <div className="flex flex-col items-center space-y-3">
             {fileName ? (
               <>
-                <FileText className="h-12 w-12 text-primary" />
+                {getFileIcon()}
                 <p className="text-sm font-medium text-gray-700">{fileName}</p>
                 <p className="text-xs text-gray-500">Haz clic o arrastra otro archivo para cambiarlo</p>
               </>
             ) : (
               <>
                 <UploadCloud className="h-12 w-12 text-primary" />
-                <p className="text-base font-medium text-gray-700">Arrastra tu archivo XML aquí o haz clic para buscar</p>
-                <p className="text-xs text-gray-500">Solo archivos .xml soportados</p>
+                <p className="text-base font-medium text-gray-700">Arrastra tu factura aquí o haz clic para buscar</p>
+                <div className="flex gap-3 mt-1">
+                  <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium">XML</span>
+                  <span className="text-xs bg-red-50 text-red-600 px-2 py-0.5 rounded-full font-medium">PDF</span>
+                  <span className="text-xs bg-green-50 text-green-600 px-2 py-0.5 rounded-full font-medium">JPG / PNG</span>
+                </div>
               </>
             )}
           </div>

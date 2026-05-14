@@ -2,12 +2,16 @@ import Anthropic from '@anthropic-ai/sdk';
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
+// Permitir más tiempo para procesamiento de imágenes/PDF
+export const maxDuration = 60;
+
 export async function POST(request: Request) {
   try {
-    const { xmlContent } = await request.json();
+    const body = await request.json();
+    const { xmlContent, fileBase64, fileType } = body;
     
-    if (!xmlContent) {
-      return NextResponse.json({ error: 'Falta el contenido del XML' }, { status: 400 });
+    if (!xmlContent && !fileBase64) {
+      return NextResponse.json({ error: 'Falta contenido para procesar (XML, PDF o imagen)' }, { status: 400 });
     }
 
     const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -17,7 +21,8 @@ export async function POST(request: Request) {
 
     const anthropic = new Anthropic({ apiKey });
 
-    const systemPrompt = `Actúa como un experto en facturación electrónica chilena (DTE). Analiza este XML y extrae exclusivamente los siguientes datos en formato JSON:
+    // Prompt para XML (existente)
+    const xmlSystemPrompt = `Actúa como un experto en facturación electrónica chilena (DTE). Analiza este XML y extrae exclusivamente los siguientes datos en formato JSON:
 
 {
   "rutEmisor": "RUT del Emisor (etiqueta <RUTEmisor>)",
@@ -43,6 +48,84 @@ Regla crítica:
 
 Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explicaciones, sin bloques de código markdown. El primer carácter de tu respuesta debe ser { y el último }.`;
 
+    // Prompt para PDF/Imágenes (visión)
+    const documentSystemPrompt = `Actúa como un experto en facturación electrónica chilena. Analiza esta factura (PDF o imagen) y extrae exclusivamente los siguientes datos en formato JSON:
+
+{
+  "rutEmisor": "RUT del Emisor/Proveedor",
+  "folio": "Número de folio de la factura",
+  "razonSocial": "Razón Social del Emisor/Proveedor",
+  "items": [
+    {
+      "nombre": "Nombre/Descripción del producto",
+      "codigo": "Código o SKU del proveedor",
+      "cantidad": 1,
+      "precioUnitario": 100,
+      "subtotalNeto": 100,
+      "impuestosAdicionales": 0
+    }
+  ]
+}
+
+Reglas críticas:
+- Lee TODOS los productos/ítems de la factura, no omitas ninguno.
+- \`precioUnitario\` DEBE ser el precio neto unitario POR UNIDAD. NO uses el monto total de la línea.
+- \`subtotalNeto\` DEBE ser el monto neto total del ítem (Cantidad × Precio Unitario).
+- \`codigo\` debe ser el código/SKU del producto que aparece en la factura. Si no hay código visible, marca 'S/C'.
+- \`impuestosAdicionales\`: extrae impuestos adicionales (ILA, impuesto a bebidas alcohólicas/analcohólicas, etc.) aplicados al ítem. Si no hay, pon 0.
+- Para \`folio\`, busca el número de documento, folio, o N° factura.
+- Los valores numéricos deben ser números, no strings.
+
+Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explicaciones, sin bloques de código markdown. El primer carácter de tu respuesta debe ser { y el último }.`;
+
+    // Seleccionar prompt según tipo de entrada
+    const systemPrompt = xmlContent ? xmlSystemPrompt : documentSystemPrompt;
+
+    // Construir contenido del mensaje según tipo de entrada
+    let userContent: any;
+    if (xmlContent) {
+      // Flujo XML existente
+      userContent = `XML a analizar:\n${xmlContent}`;
+    } else if (fileType === 'application/pdf') {
+      // Flujo PDF — usar tipo document de Claude
+      userContent = [
+        {
+          type: "document" as const,
+          source: {
+            type: "base64" as const,
+            media_type: "application/pdf" as const,
+            data: fileBase64,
+          },
+        },
+        {
+          type: "text" as const,
+          text: "Analiza esta factura y extrae los datos según las instrucciones del sistema.",
+        },
+      ];
+    } else {
+      // Flujo Imagen (JPG, PNG)
+      userContent = [
+        {
+          type: "image" as const,
+          source: {
+            type: "base64" as const,
+            media_type: fileType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+            data: fileBase64,
+          },
+        },
+        {
+          type: "text" as const,
+          text: "Analiza esta factura y extrae los datos según las instrucciones del sistema.",
+        },
+      ];
+    }
+
+    // Headers beta: prompt caching + PDF si aplica
+    const betaHeaders = ['prompt-caching-2024-07-31'];
+    if (fileType === 'application/pdf') {
+      betaHeaders.push('pdfs-2024-09-25');
+    }
+
     const result = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 4000,
@@ -58,11 +141,11 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
       messages: [
         {
           role: "user",
-          content: `XML a analizar:\n${xmlContent}`
+          content: userContent
         }
       ]
     }, { 
-      headers: { 'anthropic-beta': 'prompt-caching-2024-07-31' } // Requerido para usar prompt caching
+      headers: { 'anthropic-beta': betaHeaders.join(',') }
     });
     
     const text = result.content[0].type === 'text' ? result.content[0].text : '';
