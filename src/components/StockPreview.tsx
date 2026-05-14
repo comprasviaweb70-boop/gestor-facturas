@@ -27,6 +27,32 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
   const [loading, setLoading] = useState(false);
   const [jsonPayload, setJsonPayload] = useState<any>(null);
   const [copied, setCopied] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState<{ success: boolean; message: string; details?: any } | null>(null);
+  const [officeId, setOfficeId] = useState<number | null>(null);
+
+  // Cargar officeId al montar
+  useEffect(() => {
+    const loadOffice = async () => {
+      try {
+        const res = await fetch('/api/bsale/offices');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.items && data.items.length > 0) {
+            // Buscar sucursal Valdivia o usar la primera
+            const valdivia = data.items.find((o: any) => 
+              (o.name || '').toLowerCase().includes('valdivia')
+            );
+            setOfficeId(valdivia ? valdivia.id : data.items[0].id);
+          }
+        }
+      } catch (e) {
+        console.error('Error loading offices:', e);
+        setOfficeId(1); // Fallback
+      }
+    };
+    loadOffice();
+  }, []);
 
   const buildPreview = async () => {
     if (!extractedData?.items) return;
@@ -82,7 +108,7 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
       const validItems = items.filter(i => i.status === 'ok');
       const payload = {
         document: "Factura",
-        officeId: 1, // TODO: Configurar dinámicamente
+        officeId: officeId || 1,
         documentNumber: String(extractedData.folio || ''),
         note: `Recepción automática - ${fantasyName || extractedData.razonSocial || 'Proveedor'}`,
         details: validItems.map(item => ({
@@ -117,6 +143,75 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
     navigator.clipboard.writeText(JSON.stringify(jsonPayload, null, 2));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSendToBsale = async () => {
+    if (!jsonPayload || jsonPayload.details.length === 0) {
+      alert('No hay productos válidos para enviar.');
+      return;
+    }
+
+    const displayName = fantasyName || extractedData?.razonSocial || 'Proveedor';
+    const totalUnits = jsonPayload.details.reduce((s: number, d: any) => s + d.quantity, 0);
+
+    // Primera confirmación
+    const confirm1 = confirm(
+      `¿Enviar recepción de stock a Bsale?\n\n` +
+      `📋 Proveedor: ${displayName}\n` +
+      `📄 Folio: ${jsonPayload.documentNumber}\n` +
+      `📦 Productos: ${jsonPayload.details.length}\n` +
+      `🔢 Unidades totales: ${totalUnits}\n` +
+      `💰 Costo total: $${grandTotal.toLocaleString('es-CL')}\n\n` +
+      `Esta acción ingresará stock REAL en Bsale.`
+    );
+    if (!confirm1) return;
+
+    // Segunda confirmación
+    const confirm2 = confirm(
+      '⚠️ CONFIRMACIÓN FINAL\n\n' +
+      `¿Estás seguro de ingresar ${totalUnits} unidades de ${jsonPayload.details.length} productos al stock de Bsale?\n\n` +
+      'Haz clic en "Aceptar" para confirmar el envío.'
+    );
+    if (!confirm2) return;
+
+    setSending(true);
+    setSendResult(null);
+
+    try {
+      const res = await fetch('/api/bsale/stock-reception', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          folio: jsonPayload.documentNumber,
+          razonSocial: displayName,
+          officeId: jsonPayload.officeId,
+          items: jsonPayload.details,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setSendResult({
+          success: true,
+          message: `✅ ${data.message}`,
+          details: data,
+        });
+      } else {
+        setSendResult({
+          success: false,
+          message: `❌ ${data.error || 'Error desconocido'}`,
+          details: data,
+        });
+      }
+    } catch (error: any) {
+      setSendResult({
+        success: false,
+        message: `❌ Error de conexión: ${error.message}`,
+      });
+    } finally {
+      setSending(false);
+    }
   };
 
   const handleExportPreviewExcel = async () => {
@@ -355,18 +450,58 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
                 </div>
 
                 <button
-                  disabled={!allValid}
+                  onClick={handleSendToBsale}
+                  disabled={!allValid || sending || sendResult?.success}
                   className={`inline-flex items-center px-5 py-2.5 text-sm font-medium rounded-lg transition-colors shadow-sm ${
-                    allValid
-                      ? 'bg-green-600 text-white hover:bg-green-700 cursor-not-allowed opacity-60'
+                    sendResult?.success
+                      ? 'bg-green-100 text-green-700 cursor-not-allowed'
+                      : allValid && !sending
+                      ? 'bg-green-600 text-white hover:bg-green-700'
                       : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   }`}
-                  title={allValid ? 'Envío deshabilitado durante marcha blanca' : `Faltan ${totalMissing} SKU(s) por mapear`}
+                  title={
+                    sendResult?.success 
+                      ? 'Recepción ya enviada exitosamente'
+                      : !allValid 
+                      ? `Faltan ${totalMissing} SKU(s) por mapear` 
+                      : 'Enviar recepción de stock a Bsale'
+                  }
                 >
-                  <Send className="h-4 w-4 mr-2" />
-                  Enviar a Bsale (Deshabilitado - Marcha Blanca)
+                  {sending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : sendResult?.success ? (
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                  ) : (
+                    <Send className="h-4 w-4 mr-2" />
+                  )}
+                  {sending ? 'Enviando...' : sendResult?.success ? 'Enviado a Bsale ✓' : 'Enviar a Bsale'}
                 </button>
               </div>
+
+              {/* Send Result */}
+              {sendResult && (
+                <div className={`mx-4 mt-3 p-4 rounded-lg border ${
+                  sendResult.success
+                    ? 'bg-green-50 border-green-200'
+                    : 'bg-red-50 border-red-200'
+                }`}>
+                  <p className={`text-sm font-medium ${
+                    sendResult.success ? 'text-green-800' : 'text-red-800'
+                  }`}>
+                    {sendResult.message}
+                  </p>
+                  {sendResult.details && (
+                    <details className="mt-2">
+                      <summary className="text-xs cursor-pointer hover:underline">
+                        Ver detalle de respuesta
+                      </summary>
+                      <pre className="mt-1 text-xs bg-white p-2 rounded overflow-x-auto max-h-40">
+                        {JSON.stringify(sendResult.details, null, 2)}
+                      </pre>
+                    </details>
+                  )}
+                </div>
+              )}
 
               {/* JSON Preview (collapsible) */}
               {jsonPayload && (
