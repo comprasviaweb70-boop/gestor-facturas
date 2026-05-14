@@ -74,7 +74,7 @@ Reglas críticas:
 - \`subtotalNeto\` DEBE ser el monto neto total del ítem (Cantidad × Precio Unitario).
 - \`codigo\` debe ser el código/SKU del producto que aparece en la factura. Si no hay código visible, marca 'S/C'.
 - \`impuestosAdicionales\`: extrae impuestos adicionales (ILA, impuesto a bebidas alcohólicas/analcohólicas, etc.) aplicados al ítem. Si no hay, pon 0.
-- \`fleteTotal\`: Si existe una columna como "Total Serv. Log." o "Flete" por cada línea de producto, extrae ese valor aquí.
+- \`fleteTotal\`: EXTRAE ÚNICAMENTE de la columna "Total Serv. Log." o similar. NO CONFUNDAS con "Precio Unit. Bruto Final" ni con "Total neto C/Serv. Logístico". Si no hay columna de flete por línea, pon 0.
 - Para \`folio\`, busca el número de documento, folio, o N° factura.
 - Los valores numéricos deben ser números, no strings.
 
