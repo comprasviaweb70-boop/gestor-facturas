@@ -67,18 +67,29 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
     
     const text = result.content[0].type === 'text' ? result.content[0].text : '';
     
-    // Intentar extraer el JSON del texto
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    const jsonText = jsonMatch ? jsonMatch[0] : text;
+    // Intentar extraer el JSON del texto - múltiples estrategias
+    let jsonText = text.trim();
+    
+    // Estrategia 1: Remover bloques de código markdown (```json ... ``` o ``` ... ```)
+    const codeBlockMatch = jsonText.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
+    if (codeBlockMatch) {
+      jsonText = codeBlockMatch[1].trim();
+    }
+    
+    // Estrategia 2: Extraer el objeto JSON más externo
+    const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      jsonText = jsonMatch[0];
+    }
     
     let data;
     try {
       data = JSON.parse(jsonText);
     } catch (e) {
       console.error('Failed to parse JSON from Claude. Raw text:', text);
+      const preview = text.substring(0, 200).replace(/\n/g, ' ');
       return NextResponse.json({ 
-        error: 'El análisis de la factura no generó un resultado válido.', 
-        details: text.substring(0, 100) 
+        error: `El análisis no generó JSON válido. Respuesta de Claude: "${preview}..."`, 
       }, { status: 500 });
     }
     
