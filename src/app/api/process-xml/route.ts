@@ -159,21 +159,35 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
       jsonText = codeBlockMatch[1].trim();
     }
     
-    // Estrategia 2: Extraer el objeto JSON más externo
-    const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      jsonText = jsonMatch[0];
-    }
-    
+    // Estrategia 2: Intentar parsear directamente (podría ser un objeto o array válido)
     let data;
     try {
       data = JSON.parse(jsonText);
-    } catch (e) {
-      console.error('Failed to parse JSON from Claude. Raw text:', text);
-      const preview = text.substring(0, 200).replace(/\n/g, ' ');
-      return NextResponse.json({ 
-        error: `El análisis no generó JSON válido. Respuesta de Claude: "${preview}..."`, 
-      }, { status: 500 });
+    } catch {
+      // Estrategia 3: Extraer array JSON [...] o objeto JSON {...}
+      const arrayMatch = jsonText.match(/\[[\s\S]*\]/);
+      const objectMatch = jsonText.match(/\{[\s\S]*\}/);
+      
+      const candidate = arrayMatch ? arrayMatch[0] : (objectMatch ? objectMatch[0] : jsonText);
+      
+      try {
+        data = JSON.parse(candidate);
+      } catch (e) {
+        console.error('Failed to parse JSON from Claude. Raw text:', text);
+        const preview = text.substring(0, 200).replace(/\n/g, ' ');
+        return NextResponse.json({ 
+          error: `El análisis no generó JSON válido. Respuesta de Claude: "${preview}..."`, 
+        }, { status: 500 });
+      }
+    }
+    
+    // Si Claude devolvió un array (ej: CCU con múltiples DTEs), tomar el primer elemento
+    if (Array.isArray(data)) {
+      if (data.length === 0) {
+        return NextResponse.json({ error: 'Claude devolvió un array vacío.' }, { status: 500 });
+      }
+      console.log(`Claude devolvió array con ${data.length} elemento(s). Usando el primero.`);
+      data = data[0];
     }
     
     // Lógica de base de datos
