@@ -93,13 +93,27 @@ export default function AutoReceptionModule({ onDataExtracted }: AutoReceptionMo
     }
   };
 
-  const handleProcess = async (id: string) => {
-    setProcessingId(id);
+  const handleProcess = async (inv: any) => {
+    setProcessingId(inv.id);
     try {
-      // 1. Obtener XML
-      const resXml = await fetch(`/api/fetch-xml?id=${id}`);
-      if (!resXml.ok) throw new Error('Error al obtener XML de Bsale');
-      const xmlContent = await resXml.text();
+      let xmlContent = '';
+
+      if (inv.urlXml) {
+        // Usar la URL del XML directa desde Bsale
+        const resXml = await fetch(`/api/fetch-xml?id=${encodeURIComponent(inv.urlXml)}`);
+        if (!resXml.ok) {
+          const errData = await resXml.json().catch(() => ({}));
+          throw new Error(errData.error || `Error al obtener XML (${resXml.status})`);
+        }
+        xmlContent = await resXml.text();
+      } else {
+        // Fallback: primero obtener la urlXml del documento
+        const docRes = await fetch(`/api/fetch-xml?id=${inv.id}`);
+        if (!docRes.ok) {
+          throw new Error('Esta factura no tiene XML disponible en Bsale');
+        }
+        xmlContent = await docRes.text();
+      }
       
       // 2. Procesar con Claude
       const resProcess = await fetch('/api/process-xml', {
@@ -117,7 +131,7 @@ export default function AutoReceptionModule({ onDataExtracted }: AutoReceptionMo
       alert('¡Factura procesada con éxito!');
       
       // Marcar como procesada localmente para visualización
-      setInvoices(prev => prev.map(inv => inv.id === id ? { ...inv, procesada: true } : inv));
+      setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, procesada: true } : i));
       
     } catch (error: any) {
       console.error('Error processing invoice:', error);
@@ -200,7 +214,7 @@ export default function AutoReceptionModule({ onDataExtracted }: AutoReceptionMo
                       ) : (
                         <>
                           <button
-                            onClick={() => handleProcess(inv.id)}
+                            onClick={() => handleProcess(inv)}
                             disabled={processingId !== null || ignoringId !== null}
                             className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-action hover:bg-orange-600 transition-colors disabled:bg-gray-400"
                             title="Procesar factura con Claude"
