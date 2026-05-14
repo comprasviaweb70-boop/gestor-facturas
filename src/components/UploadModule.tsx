@@ -59,15 +59,20 @@ export default function UploadModule({ onDataExtracted }: UploadModuleProps) {
         body: JSON.stringify({ xmlContent: text }),
       });
 
+      const data = await response.json();
+      
       if (!response.ok) {
-        throw new Error('Error al procesar el archivo');
+        throw new Error(data.error || `Error del servidor (${response.status})`);
       }
 
-      const data = await response.json();
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
       onDataExtracted(data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error:', error);
-      alert('Hubo un error al procesar el archivo.');
+      alert(`Error al procesar el archivo: ${error.message || 'Error desconocido'}`);
     } finally {
       setIsLoading(false);
     }
