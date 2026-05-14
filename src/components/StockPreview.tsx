@@ -236,7 +236,7 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
 
     // Table headers
     const headerRow = ws.getRow(5);
-    headerRow.values = ['Estado', 'Cód. Proveedor', 'Producto', 'SKU Bsale', 'Cantidad', 'Costo Unit.', 'Total'];
+    headerRow.values = ['Estado', 'Cód. Proveedor', 'Producto', 'SKU Bsale', 'Cantidad', 'Costo Unit.', 'Total Línea'];
     headerRow.eachCell(cell => {
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF00427E' } };
       cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
@@ -378,7 +378,7 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
                       <th className="px-3 py-2.5">SKU Bsale</th>
                       <th className="px-3 py-2.5 text-right">Cantidad</th>
                       <th className="px-3 py-2.5 text-right">Costo Unit.</th>
-                      <th className="px-3 py-2.5 text-right">Total</th>
+                      <th className="px-3 py-2.5 text-right font-bold text-orange-600">Total Línea</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -409,7 +409,7 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
                         </td>
                         <td className="px-3 py-2.5 text-right font-medium">{item.quantity}</td>
                         <td className="px-3 py-2.5 text-right">${item.cost.toLocaleString('es-CL')}</td>
-                        <td className="px-3 py-2.5 text-right font-medium">${item.total.toLocaleString('es-CL')}</td>
+                        <td className="px-3 py-2.5 text-right font-bold text-orange-600">${item.total.toLocaleString('es-CL')}</td>
                       </tr>
                     ))}
                   </tbody>

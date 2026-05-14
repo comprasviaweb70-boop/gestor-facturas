@@ -100,7 +100,7 @@ export default function Home() {
       worksheet.getCell('A2').font = { bold: true };
 
       // Fila 4: Headers con nueva estructura de columnas
-      const headers = ['N° Factura', 'SKU', 'Stock', 'Subtotal Neto', 'Impto. Adic.', 'Flete', 'PCU', 'Total', 'PVU'];
+      const headers = ['N° Factura', 'SKU', 'Stock', 'Subtotal Neto', 'Impto. Adic.', 'Flete', 'PCU', 'Total Línea', 'PVU'];
       const headerRow = worksheet.getRow(4);
       headerRow.values = headers;
 
@@ -186,7 +186,7 @@ export default function Home() {
           row.getCell(5).numFmt = '"$"#,##0';   // Imp. Adic.
           row.getCell(6).numFmt = '"$"#,##0';   // Flete
           row.getCell(7).numFmt = '0';          // PCU (Número puro)
-          row.getCell(8).numFmt = '"$"#,##0';   // Total
+          row.getCell(8).numFmt = '"$"#,##0';   // Total Línea
           row.getCell(9).numFmt = '"$"#,##0';   // PVU
 
           currentRow++;

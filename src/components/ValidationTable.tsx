@@ -402,6 +402,7 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
                 <th scope="col" className="px-3 py-3 text-right">Subtotal Neto</th>
                 <th scope="col" className="px-3 py-3 text-right">Impto. Adic.</th>
                 <th scope="col" className="px-3 py-3 text-right">Flete</th>
+                <th scope="col" className="px-3 py-3 text-right font-bold text-orange-600 bg-orange-50">Total Línea</th>
                 <th scope="col" className="px-3 py-3 text-right bg-primary/80">PCU</th>
                 <th scope="col" className="px-3 py-3">Escanear Barra</th>
                 <th scope="col" className="px-3 py-3">SKU Bsale</th>
@@ -485,6 +486,10 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
                         className="w-20 border rounded-md px-2 py-1 text-sm text-right"
                         min="0"
                       />
+                    </td>
+                    {/* Total Línea (Suma para validación) */}
+                    <td className="px-3 py-2 text-right font-bold text-orange-600 bg-orange-50/30">
+                      ${Math.round(subtotalNeto + imptoAdic + flete).toLocaleString('es-CL')}
                     </td>
                     {/* PCU (calculado) */}
                     <td className="px-3 py-2 text-right font-semibold text-primary">
