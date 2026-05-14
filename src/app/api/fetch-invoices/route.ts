@@ -9,8 +9,8 @@ export async function GET() {
     }, { status: 401 });
   }
   
-  // Paso 1: Conexión API a Bsale (Listado de Documentos de Proveedores)
-  const url = 'https://api.bsale.cl/v1/third_party_documents.json';
+  // Paso 1: Listado de Documentos de Proveedores (últimos 25, más recientes primero)
+  const url = 'https://api.bsale.cl/v1/third_party_documents.json?limit=25&order=desc';
   
   try {
     const res = await fetch(url, {
@@ -26,22 +26,24 @@ export async function GET() {
     
     const data = await res.json();
     
-    if (!data.items) {
+    if (!data.items || data.items.length === 0) {
       return NextResponse.json([]);
     }
 
-    // Mapear los datos para el frontend (AutoReceptionModule)
-    const invoices = data.items.map((doc: any) => ({
-      // Usaremos urlXml como ID para el siguiente paso en fetch-xml
-      id: doc.urlXml || doc.id?.toString(),
-      urlXml: doc.urlXml,
-      fecha: new Date(doc.generationDate * 1000).toLocaleDateString('es-CL') || 'S/F',
-      folio: doc.number || 'S/F',
-      rutProveedor: doc.code || 'S/R', // 'code' is usually the RUT in Bsale for clients/suppliers
-      razonSocial: doc.name || 'S/N', 
-      montoTotal: doc.totalAmount || 0,
-      procesada: false
-    })).filter((doc: any) => doc.urlXml); // Solo mostrar los que tienen XML
+    // Mapear con los nombres REALES de campos de la API de Bsale
+    const invoices = data.items
+      .filter((doc: any) => doc.codeSii === '33') // Solo facturas (tipo 33)
+      .map((doc: any) => ({
+        id: doc.id.toString(),
+        fecha: new Date(doc.emissionDate * 1000).toLocaleDateString('es-CL'),
+        folio: doc.number || 'S/F',
+        rutProveedor: doc.clientCode || 'S/R',
+        razonSocial: doc.clientActivity || 'S/N',
+        montoTotal: doc.totalAmount || 0,
+        montoNeto: doc.netAmount || 0,
+        iva: doc.ivaAmount || 0,
+        procesada: false
+      }));
     
     return NextResponse.json(invoices);
   } catch (error: any) {
@@ -49,4 +51,3 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
-
