@@ -62,17 +62,19 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
       "cantidad": 1,
       "precioUnitario": 100,
       "subtotalNeto": 100,
-      "impuestosAdicionales": 0
+      "impuestosAdicionales": 0,
+      "fleteTotal": 0
     }
   ]
 }
 
 Reglas críticas:
 - Lee TODOS los productos/ítems de la factura, no omitas ninguno.
-- \`precioUnitario\` DEBE ser el precio neto unitario POR UNIDAD. NO uses el monto total de la línea.
+- \`precioUnitario\` DEBE ser el precio neto unitario POR UNIDAD. Si hay una columna "Valor Unit. Neto c/Descto", usa ese valor.
 - \`subtotalNeto\` DEBE ser el monto neto total del ítem (Cantidad × Precio Unitario).
 - \`codigo\` debe ser el código/SKU del producto que aparece en la factura. Si no hay código visible, marca 'S/C'.
 - \`impuestosAdicionales\`: extrae impuestos adicionales (ILA, impuesto a bebidas alcohólicas/analcohólicas, etc.) aplicados al ítem. Si no hay, pon 0.
+- \`fleteTotal\`: Si existe una columna como "Total Serv. Log." o "Flete" por cada línea de producto, extrae ese valor aquí.
 - Para \`folio\`, busca el número de documento, folio, o N° factura.
 - Los valores numéricos deben ser números, no strings.
 
@@ -382,9 +384,10 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
           }
         });
 
-        // 2. Extraer items de Servicio Logístico ("Total Serv. Log.") y distribuir como flete
+        // 2. Usar fleteTotal ya extraído por Claude de la columna "Total Serv. Log."
+        // Y también manejar el caso de que existan filas separadas de servicio logístico (fallback)
         const servLogIndices: number[] = [];
-        let totalServLog = 0;
+        let extraServLog = 0;
         
         items.forEach((item: any, index: number) => {
           const nombre = (item.nombre || '').toUpperCase();
@@ -392,27 +395,25 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
               nombre.includes('SERVICIO LOGISTICO') || 
               nombre.includes('SERVICIO LOGÍSTICO') ||
               nombre.includes('SERV. LOG')) {
-            totalServLog += item.subtotalNeto || ((item.cantidad || 1) * (item.precioUnitario || 0));
+            // Si el item tiene un flete propio pero es una línea de servicio logístico, 
+            // acumulamos para distribuir después o simplemente ignoramos si ya viene por columna
+            extraServLog += item.subtotalNeto || ((item.cantidad || 1) * (item.precioUnitario || 0));
             servLogIndices.push(index);
-            console.log(`VCT: Servicio logístico detectado: ${item.nombre} -> ${item.subtotalNeto || 0}`);
           }
         });
 
-        // Eliminar items de servicio logístico (de atrás hacia adelante para no afectar índices)
+        // Eliminar items de servicio logístico si se detectaron como filas
         if (servLogIndices.length > 0) {
           for (let i = servLogIndices.length - 1; i >= 0; i--) {
             items.splice(servLogIndices[i], 1);
           }
 
-          // Distribuir flete total entre los productos restantes proporcionalmente
+          // Si había flete en filas pero no en columnas, lo distribuimos
           const totalUnits = items.reduce((acc: number, item: any) => acc + (Number(item.cantidad) || 0), 0);
-          
-          if (totalUnits > 0) {
-            const fleteUnitario = totalServLog / totalUnits;
-            console.log(`VCT: Distribuyendo ${totalServLog} de serv. logístico entre ${totalUnits} unidades. Flete unitario: ${fleteUnitario}`);
-            
+          if (totalUnits > 0 && extraServLog > 0) {
+            const fleteExtraUnitario = extraServLog / totalUnits;
             items.forEach((item: any) => {
-              item.fleteTotal = fleteUnitario * (item.cantidad || 1);
+              item.fleteTotal = (item.fleteTotal || 0) + (fleteExtraUnitario * (item.cantidad || 1));
             });
           }
         }
