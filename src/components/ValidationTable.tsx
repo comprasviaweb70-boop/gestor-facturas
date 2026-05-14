@@ -401,14 +401,12 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
           >
             Actualizar
           </button>
-          {!propItems && (
-            <button
-              onClick={handlePurgeQueue}
-              className="text-sm text-red-500 hover:text-red-700 font-medium px-3 py-1.5"
-            >
-              Limpiar Cola
-            </button>
-          )}
+          <button
+            onClick={handlePurgeQueue}
+            className="text-sm text-red-500 hover:text-red-700 font-medium px-3 py-1.5"
+          >
+            Limpiar Cola
+          </button>
         </div>
       </div>
 
