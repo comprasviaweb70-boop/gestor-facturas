@@ -1,0 +1,388 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
+import { Eye, AlertTriangle, CheckCircle, XCircle, Copy, FileDown, Send, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import ExcelJS from 'exceljs';
+
+interface StockPreviewProps {
+  extractedData: any;
+  fantasyName: string;
+  margin: number;
+}
+
+interface PreviewItem {
+  supplierCode: string;
+  productName: string;
+  internalSku: string | null;
+  quantity: number;
+  cost: number; // PCU con flete e impuestos
+  total: number;
+  status: 'ok' | 'missing_sku' | 'zero_qty';
+}
+
+export default function StockPreview({ extractedData, fantasyName, margin }: StockPreviewProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [previewItems, setPreviewItems] = useState<PreviewItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [jsonPayload, setJsonPayload] = useState<any>(null);
+  const [copied, setCopied] = useState(false);
+
+  const buildPreview = async () => {
+    if (!extractedData?.items) return;
+    setLoading(true);
+
+    try {
+      // Obtener equivalencias
+      const supplierCodes = extractedData.items.map((item: any) => item.codigo?.trim()).filter(Boolean);
+      let equivalences: { [key: string]: string } = {};
+
+      if (supplierCodes.length > 0) {
+        const { data: eqData } = await supabase
+          .from('sku_equivalences')
+          .select('supplier_code, internal_sku, rut_provider')
+          .in('supplier_code', supplierCodes);
+
+        if (eqData) {
+          eqData.forEach((eq: any) => {
+            if (eq.rut_provider === extractedData.rutEmisor) {
+              equivalences[eq.supplier_code] = eq.internal_sku;
+            } else if (!eq.rut_provider && !equivalences[eq.supplier_code]) {
+              equivalences[eq.supplier_code] = eq.internal_sku;
+            }
+          });
+        }
+      }
+
+      // Construir items de preview
+      const items: PreviewItem[] = extractedData.items.map((item: any) => {
+        const code = (item.codigo || '').trim();
+        const sku = item.internal_sku || equivalences[code] || null;
+        const pcu = (item.precioUnitario || item.precioNeto || 0) + (item.impuestosAdicionales || 0) + (item.deliveryUnitario || 0);
+        const qty = item.cantidad || 0;
+
+        let status: 'ok' | 'missing_sku' | 'zero_qty' = 'ok';
+        if (!sku) status = 'missing_sku';
+        else if (qty <= 0) status = 'zero_qty';
+
+        return {
+          supplierCode: code,
+          productName: item.nombre || item.descripcion || 'Sin nombre',
+          internalSku: sku,
+          quantity: qty,
+          cost: Math.round(pcu),
+          total: Math.round(qty * pcu),
+          status,
+        };
+      });
+
+      setPreviewItems(items);
+
+      // Construir payload JSON para Bsale (solo items válidos)
+      const validItems = items.filter(i => i.status === 'ok');
+      const payload = {
+        document: "Factura",
+        officeId: 1, // TODO: Configurar dinámicamente
+        documentNumber: String(extractedData.folio || ''),
+        note: `Recepción automática - ${fantasyName || extractedData.razonSocial || 'Proveedor'}`,
+        details: validItems.map(item => ({
+          quantity: item.quantity,
+          code: item.internalSku,
+          cost: item.cost,
+        })),
+      };
+
+      setJsonPayload(payload);
+    } catch (error) {
+      console.error('Error building preview:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen && extractedData?.items) {
+      buildPreview();
+    }
+  }, [isOpen, extractedData]);
+
+  const totalOk = previewItems.filter(i => i.status === 'ok').length;
+  const totalMissing = previewItems.filter(i => i.status === 'missing_sku').length;
+  const totalZero = previewItems.filter(i => i.status === 'zero_qty').length;
+  const grandTotal = previewItems.reduce((sum, i) => sum + i.total, 0);
+  const allValid = totalMissing === 0 && totalZero === 0;
+
+  const handleCopyJson = () => {
+    if (!jsonPayload) return;
+    navigator.clipboard.writeText(JSON.stringify(jsonPayload, null, 2));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleExportPreviewExcel = async () => {
+    if (previewItems.length === 0) return;
+    
+    const workbook = new ExcelJS.Workbook();
+    const ws = workbook.addWorksheet('Preview Bsale');
+
+    const displayName = fantasyName || extractedData?.razonSocial || 'Proveedor';
+
+    // Header
+    ws.getCell('A1').value = 'VISTA PREVIA - Recepción de Stock Bsale';
+    ws.getCell('A1').font = { bold: true, size: 14, color: { argb: 'FF00427E' } };
+    ws.mergeCells('A1:G1');
+
+    ws.getCell('A2').value = `Proveedor: ${displayName}`;
+    ws.getCell('A2').font = { bold: true };
+    ws.getCell('A3').value = `Folio: ${extractedData?.folio || 'S/F'}`;
+    ws.getCell('A3').font = { bold: true };
+    ws.getCell('D2').value = `RUT: ${extractedData?.rutEmisor || ''}`;
+    ws.getCell('D3').value = `Fecha: ${new Date().toLocaleDateString('es-CL')}`;
+
+    // Table headers
+    const headerRow = ws.getRow(5);
+    headerRow.values = ['Estado', 'Cód. Proveedor', 'Producto', 'SKU Bsale', 'Cantidad', 'Costo Unit.', 'Total'];
+    headerRow.eachCell(cell => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF00427E' } };
+      cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+      cell.alignment = { horizontal: 'center' };
+    });
+
+    let row = 6;
+    for (const item of previewItems) {
+      const r = ws.getRow(row);
+      r.values = [
+        item.status === 'ok' ? '✅ OK' : item.status === 'missing_sku' ? '❌ SIN SKU' : '⚠️ CANT. 0',
+        item.supplierCode,
+        item.productName,
+        item.internalSku || 'SIN MATCH',
+        item.quantity,
+        item.cost,
+        item.total,
+      ];
+      
+      if (item.status !== 'ok') {
+        r.eachCell(cell => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: item.status === 'missing_sku' ? 'FFFDE8E8' : 'FFFFFBE8' } };
+        });
+      }
+
+      r.getCell(6).numFmt = '"$"#,##0';
+      r.getCell(7).numFmt = '"$"#,##0';
+      row++;
+    }
+
+    // Total row
+    const totalRow = ws.getRow(row);
+    totalRow.getCell(5).value = 'TOTAL:';
+    totalRow.getCell(5).font = { bold: true };
+    totalRow.getCell(7).value = grandTotal;
+    totalRow.getCell(7).numFmt = '"$"#,##0';
+    totalRow.getCell(7).font = { bold: true };
+
+    // Summary row
+    const summaryRow = ws.getRow(row + 2);
+    summaryRow.getCell(1).value = `Resumen: ${totalOk} OK | ${totalMissing} sin SKU | ${totalZero} cant. 0`;
+    summaryRow.getCell(1).font = { italic: true, color: { argb: 'FF666666' } };
+
+    // Auto width
+    ws.columns.forEach((col: any) => {
+      let maxLen = 0;
+      col.eachCell({ includeEmpty: true }, (cell: any) => {
+        const len = cell.value ? String(cell.value).length : 0;
+        if (len > maxLen) maxLen = len;
+      });
+      col.width = Math.max(12, maxLen + 2);
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const safeName = (fantasyName || 'Preview').replace(/[\\/:*?"<>|]/g, '');
+    a.download = `PREVIEW_${safeName}_${extractedData?.folio || 'SF'}.xlsx`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  if (!extractedData?.items) return null;
+
+  return (
+    <div className="w-full max-w-6xl mx-auto mt-6">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex justify-between items-center px-6 py-4 bg-white rounded-xl shadow-sm border border-gray-100 hover:bg-gray-50 transition-colors"
+      >
+        <div className="flex items-center space-x-3">
+          <Eye className="h-5 w-5 text-primary" />
+          <div className="text-left">
+            <h2 className="text-lg font-semibold text-primary">Vista Previa - Ingreso a Bsale</h2>
+            <p className="text-xs text-gray-500">Revisa el detalle antes de ingresar al stock</p>
+          </div>
+        </div>
+        {isOpen ? <ChevronUp className="h-5 w-5 text-gray-400" /> : <ChevronDown className="h-5 w-5 text-gray-400" />}
+      </button>
+
+      {isOpen && (
+        <div className="bg-white mt-2 rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          {loading ? (
+            <div className="flex justify-center items-center p-10">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <span className="ml-2 text-gray-600">Construyendo vista previa...</span>
+            </div>
+          ) : (
+            <>
+              {/* Status Bar */}
+              <div className="px-4 py-3 border-b border-gray-100 flex flex-wrap gap-3 items-center bg-gray-50">
+                <span className="text-sm font-medium text-gray-700">
+                  Folio: <span className="text-primary font-bold">{extractedData?.folio || 'S/F'}</span>
+                </span>
+                <span className="text-sm text-gray-400">|</span>
+                <span className="text-sm text-gray-700">
+                  {fantasyName || extractedData?.razonSocial || 'Proveedor'}
+                </span>
+                <span className="text-sm text-gray-400">|</span>
+                <div className="flex gap-2 ml-auto">
+                  <span className="inline-flex items-center text-xs bg-green-50 text-green-700 px-2.5 py-1 rounded-full font-medium">
+                    <CheckCircle className="h-3 w-3 mr-1" /> {totalOk} listos
+                  </span>
+                  {totalMissing > 0 && (
+                    <span className="inline-flex items-center text-xs bg-red-50 text-red-700 px-2.5 py-1 rounded-full font-medium">
+                      <XCircle className="h-3 w-3 mr-1" /> {totalMissing} sin SKU
+                    </span>
+                  )}
+                  {totalZero > 0 && (
+                    <span className="inline-flex items-center text-xs bg-amber-50 text-amber-700 px-2.5 py-1 rounded-full font-medium">
+                      <AlertTriangle className="h-3 w-3 mr-1" /> {totalZero} cant. 0
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Warning Banner */}
+              {totalMissing > 0 && (
+                <div className="mx-4 mt-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-red-700">
+                    <strong>{totalMissing} producto(s)</strong> no tienen SKU de Bsale mapeado. 
+                    Estos ítems <strong>no se incluirán</strong> en el ingreso de stock. 
+                    Vuelve a la tabla de validación para parear los productos faltantes.
+                  </p>
+                </div>
+              )}
+
+              {/* Preview Table */}
+              <div className="overflow-x-auto p-4">
+                <table className="w-full text-sm text-left">
+                  <thead className="text-xs uppercase bg-gray-100 text-gray-600">
+                    <tr>
+                      <th className="px-3 py-2.5 w-8"></th>
+                      <th className="px-3 py-2.5">Cód. Prov.</th>
+                      <th className="px-3 py-2.5">Producto</th>
+                      <th className="px-3 py-2.5">SKU Bsale</th>
+                      <th className="px-3 py-2.5 text-right">Cantidad</th>
+                      <th className="px-3 py-2.5 text-right">Costo Unit.</th>
+                      <th className="px-3 py-2.5 text-right">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {previewItems.map((item, idx) => (
+                      <tr
+                        key={idx}
+                        className={`border-b transition-colors ${
+                          item.status === 'missing_sku'
+                            ? 'bg-red-50/50 hover:bg-red-50'
+                            : item.status === 'zero_qty'
+                            ? 'bg-amber-50/50 hover:bg-amber-50'
+                            : 'bg-white hover:bg-gray-50'
+                        }`}
+                      >
+                        <td className="px-3 py-2.5 text-center">
+                          {item.status === 'ok' && <CheckCircle className="h-4 w-4 text-green-500" />}
+                          {item.status === 'missing_sku' && <XCircle className="h-4 w-4 text-red-500" />}
+                          {item.status === 'zero_qty' && <AlertTriangle className="h-4 w-4 text-amber-500" />}
+                        </td>
+                        <td className="px-3 py-2.5 font-mono text-xs text-gray-500">{item.supplierCode}</td>
+                        <td className="px-3 py-2.5 text-gray-800 font-medium">{item.productName}</td>
+                        <td className="px-3 py-2.5 font-mono text-xs">
+                          {item.internalSku ? (
+                            <span className="text-green-700 bg-green-50 px-2 py-0.5 rounded">{item.internalSku}</span>
+                          ) : (
+                            <span className="text-red-600 bg-red-50 px-2 py-0.5 rounded">SIN MATCH</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-medium">{item.quantity}</td>
+                        <td className="px-3 py-2.5 text-right">${item.cost.toLocaleString('es-CL')}</td>
+                        <td className="px-3 py-2.5 text-right font-medium">${item.total.toLocaleString('es-CL')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-gray-50 font-bold">
+                      <td colSpan={4} className="px-3 py-3 text-right text-gray-600">
+                        Total ({totalOk} productos válidos):
+                      </td>
+                      <td className="px-3 py-3 text-right">
+                        {previewItems.filter(i => i.status === 'ok').reduce((s, i) => s + i.quantity, 0)} uds
+                      </td>
+                      <td className="px-3 py-3"></td>
+                      <td className="px-3 py-3 text-right text-primary">
+                        ${grandTotal.toLocaleString('es-CL')}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="px-4 py-4 border-t border-gray-100 bg-gray-50 flex flex-wrap gap-3 items-center justify-between">
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleExportPreviewExcel}
+                    className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+                  >
+                    <FileDown className="h-4 w-4 mr-2" />
+                    Exportar Preview Excel
+                  </button>
+                  <button
+                    onClick={handleCopyJson}
+                    className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+                  >
+                    <Copy className="h-4 w-4 mr-2" />
+                    {copied ? '¡Copiado!' : 'Copiar JSON'}
+                  </button>
+                </div>
+
+                <button
+                  disabled={!allValid}
+                  className={`inline-flex items-center px-5 py-2.5 text-sm font-medium rounded-lg transition-colors shadow-sm ${
+                    allValid
+                      ? 'bg-green-600 text-white hover:bg-green-700 cursor-not-allowed opacity-60'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }`}
+                  title={allValid ? 'Envío deshabilitado durante marcha blanca' : `Faltan ${totalMissing} SKU(s) por mapear`}
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  Enviar a Bsale (Deshabilitado - Marcha Blanca)
+                </button>
+              </div>
+
+              {/* JSON Preview (collapsible) */}
+              {jsonPayload && (
+                <details className="mx-4 mb-4">
+                  <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600 py-2">
+                    Ver payload JSON que se enviaría a Bsale
+                  </summary>
+                  <pre className="bg-gray-900 text-green-400 p-4 rounded-lg text-xs overflow-x-auto max-h-64">
+                    {JSON.stringify(jsonPayload, null, 2)}
+                  </pre>
+                </details>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

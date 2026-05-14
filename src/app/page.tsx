@@ -6,6 +6,7 @@ import ValidationTable from '@/components/ValidationTable';
 import DocumentViewer from '@/components/DocumentViewer';
 import AutoReceptionModule from '@/components/AutoReceptionModule';
 import EquivalenceManager from '@/components/EquivalenceManager';
+import StockPreview from '@/components/StockPreview';
 import { supabase } from '@/lib/supabase';
 import ExcelJS from 'exceljs';
 import { FileDown, Loader2 } from 'lucide-react';
@@ -318,6 +319,13 @@ export default function Home() {
           items={extractedData?.items} 
           onItemsChange={(updatedItems) => setExtractedData({...extractedData, items: updatedItems})}
           rutEmisor={extractedData?.rutEmisor}
+        />
+
+        {/* Stock Preview - Marcha Blanca */}
+        <StockPreview 
+          extractedData={extractedData}
+          fantasyName={fantasyName}
+          margin={margin}
         />
 
         {/* Equivalence Manager */}
