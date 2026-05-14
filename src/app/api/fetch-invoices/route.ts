@@ -9,8 +9,8 @@ export async function GET() {
     }, { status: 401 });
   }
   
-  // Paso 1: Listado de Documentos de Proveedores (últimos 25, más recientes primero)
-  const url = 'https://api.bsale.cl/v1/third_party_documents.json?limit=25&order=desc';
+  // Paso 1: Listado de Documentos de Proveedores (mayo 2026, activos, máx 25)
+  const url = 'https://api.bsale.cl/v1/third_party_documents.json?limit=25&state=0&emissiondaterange=[1714521600,1717200000]';
   
   try {
     const res = await fetch(url, {

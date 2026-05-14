@@ -79,8 +79,8 @@ export async function GET(request: Request) {
     });
   }
 
-  // Petición GET pura al listado, sin filtros ni procesamiento
-  const url = 'https://api.bsale.cl/v1/third_party_documents.json?limit=3';
+  // Petición GET pura al listado con filtros de mayo 2026
+  const url = 'https://api.bsale.cl/v1/third_party_documents.json?limit=3&state=0&emissiondaterange=[1714521600,1717200000]';
 
   try {
     const res = await fetch(url, {
