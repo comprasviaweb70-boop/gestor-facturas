@@ -18,11 +18,38 @@ export async function GET(request: Request) {
     });
   }
 
-  // Si se pasa docId, buscar detalle de ese documento específico para encontrar urlXml
+  // Si se pasa docId, probar múltiples endpoints para encontrar detalle/XML
   if (docId) {
+    // Obtener datos del documento para usar el folio y RUT en búsquedas cruzadas
+    let docNumber = docId;
+    let docClientCode = '';
+    
+    try {
+      const docRes = await fetch(`https://api.bsale.cl/v1/third_party_documents/${docId}.json`, {
+        headers: { 'access_token': token, 'Accept': 'application/json' },
+      });
+      if (docRes.ok) {
+        const docData = await docRes.json();
+        docNumber = docData.number || docId;
+        docClientCode = docData.clientCode || '';
+      }
+    } catch {}
+
     const urls = [
+      // Detalle del third_party_document
       `https://api.bsale.cl/v1/third_party_documents/${docId}.json`,
+      // Sub-recursos posibles
+      `https://api.bsale.cl/v1/third_party_documents/${docId}/details.json`,
+      `https://api.bsale.cl/v1/third_party_documents/${docId}/items.json`,
       `https://api.bsale.cl/v1/third_party_documents/${docId}/xml.json`,
+      // Buscar en documents por folio
+      `https://api.bsale.cl/v1/documents.json?number=${docNumber}&limit=1`,
+      // Buscar en purchase_orders
+      `https://api.bsale.cl/v1/purchase_orders.json?limit=1`,
+      // Buscar en received_tax_documents (DTEs recibidos)
+      `https://api.bsale.cl/v1/received_tax_documents.json?limit=1`,
+      // Buscar por dte_received 
+      `https://api.bsale.cl/v1/dte/received.json?limit=1`,
     ];
 
     const results = [];
@@ -34,13 +61,22 @@ export async function GET(request: Request) {
         const body = await res.text();
         let parsed = null;
         try { parsed = JSON.parse(body); } catch {}
-        results.push({ url, status: res.status, ok: res.ok, response: parsed || body });
+        results.push({ 
+          url, 
+          status: res.status, 
+          ok: res.ok, 
+          // Solo mostrar primeros campos para no saturar
+          response: parsed || body.substring(0, 500)
+        });
       } catch (error: any) {
         results.push({ url, error: error.message });
       }
     }
 
-    return NextResponse.json({ diagnóstico: `Detalle del documento ${docId}`, results });
+    return NextResponse.json({ 
+      diagnóstico: `Exploración de endpoints para doc ${docId} (folio: ${docNumber}, RUT: ${docClientCode})`, 
+      results 
+    });
   }
 
   // Petición GET pura al listado, sin filtros ni procesamiento
