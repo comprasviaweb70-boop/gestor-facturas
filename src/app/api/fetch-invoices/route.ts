@@ -9,8 +9,8 @@ export async function GET() {
     }, { status: 401 });
   }
   
-  // Paso 1: Listado de Documentos de Proveedores (mayo 2026, activos, máx 25)
-  const url = 'https://api.bsale.cl/v1/third_party_documents.json?limit=25&state=0&emissiondaterange=[1714521600,1717200000]';
+  // Paso 1: Listado de Documentos de Terceros (mayo 2026, facturas tipo 33)
+  const url = 'https://api.bsale.cl/v1/third_party_documents.json?limit=25&year=2026&month=5&codesii=33';
   
   try {
     const res = await fetch(url, {
@@ -31,9 +31,7 @@ export async function GET() {
     }
 
     // Mapear con los nombres REALES de campos de la API de Bsale
-    const invoices = data.items
-      .filter((doc: any) => doc.codeSii === '33') // Solo facturas (tipo 33)
-      .map((doc: any) => ({
+    const invoices = data.items.map((doc: any) => ({
         id: doc.id.toString(),
         fecha: new Date(doc.emissionDate * 1000).toLocaleDateString('es-CL'),
         folio: doc.number || 'S/F',
