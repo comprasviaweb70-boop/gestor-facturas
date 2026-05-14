@@ -12,6 +12,7 @@ interface Equivalence {
   supplier_name: string;
   rut_provider: string | null;
   created_at: string;
+  product_name?: string;
 }
 
 export default function EquivalenceManager() {
@@ -36,8 +37,33 @@ export default function EquivalenceManager() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setEquivalences(data || []);
-      setFilteredEquivalences(data || []);
+
+      // Enriquecer con nombres de producto desde validation_queue
+      const codes = (data || []).map(eq => eq.supplier_code).filter(Boolean);
+      let productNames: { [code: string]: string } = {};
+      
+      if (codes.length > 0) {
+        const { data: queueData } = await supabase
+          .from('validation_queue')
+          .select('supplier_code, product_name')
+          .in('supplier_code', codes);
+        
+        if (queueData) {
+          queueData.forEach((q: any) => {
+            if (q.supplier_code && q.product_name) {
+              productNames[q.supplier_code] = q.product_name;
+            }
+          });
+        }
+      }
+
+      const enriched = (data || []).map(eq => ({
+        ...eq,
+        product_name: productNames[eq.supplier_code] || '',
+      }));
+
+      setEquivalences(enriched);
+      setFilteredEquivalences(enriched);
       setPage(0);
     } catch (error) {
       console.error('Error fetching equivalences:', error);
@@ -64,7 +90,8 @@ export default function EquivalenceManager() {
           (eq.source_sku || '').toLowerCase().includes(term) ||
           (eq.supplier_code || '').toLowerCase().includes(term) ||
           (eq.supplier_name || '').toLowerCase().includes(term) ||
-          (eq.rut_provider || '').toLowerCase().includes(term)
+          (eq.rut_provider || '').toLowerCase().includes(term) ||
+          (eq.product_name || '').toLowerCase().includes(term)
         )
       );
     }
@@ -173,7 +200,7 @@ export default function EquivalenceManager() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Buscar por SKU, código proveedor, nombre o RUT..."
+                placeholder="Buscar por nombre de producto, SKU, código, proveedor o RUT..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-800 placeholder-gray-600 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
@@ -240,6 +267,7 @@ export default function EquivalenceManager() {
                 <table className="w-full text-sm text-left text-gray-500">
                   <thead className="text-xs text-white uppercase bg-primary/80">
                     <tr>
+                      <th scope="col" className="px-3 py-2.5">Nombre Producto</th>
                       <th scope="col" className="px-3 py-2.5">SKU Bsale</th>
                       <th scope="col" className="px-3 py-2.5">Cód. Proveedor</th>
                       <th scope="col" className="px-3 py-2.5">Proveedor</th>
@@ -251,7 +279,7 @@ export default function EquivalenceManager() {
                   <tbody>
                     {paginatedItems.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-4 py-6 text-center text-gray-400">
+                        <td colSpan={7} className="px-4 py-6 text-center text-gray-400">
                           {searchTerm ? 'No se encontraron equivalencias con ese filtro.' : 'No hay equivalencias registradas.'}
                         </td>
                       </tr>
@@ -260,6 +288,9 @@ export default function EquivalenceManager() {
                         <tr key={eq.id} className="bg-white border-b hover:bg-gray-50 transition-colors">
                           {editingId === eq.id ? (
                             <>
+                              <td className="px-3 py-2 text-xs text-gray-500 italic">
+                                {eq.product_name || '—'}
+                              </td>
                               <td className="px-3 py-2">
                                 <input
                                   type="text"
@@ -317,6 +348,7 @@ export default function EquivalenceManager() {
                             </>
                           ) : (
                             <>
+                              <td className="px-3 py-2 text-xs text-gray-600">{eq.product_name || <span className="text-gray-300">—</span>}</td>
                               <td className="px-3 py-2 font-mono text-xs text-gray-900">{eq.internal_sku}</td>
                               <td className="px-3 py-2 font-medium text-gray-700">{eq.supplier_code}</td>
                               <td className="px-3 py-2">{eq.supplier_name || '—'}</td>
