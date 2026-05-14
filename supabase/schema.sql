@@ -59,3 +59,33 @@ ON proveedores FOR UPDATE
 TO public
 USING (true)
 WITH CHECK (true);
+
+-- Table: ignored_invoices
+CREATE TABLE IF NOT EXISTS ignored_invoices (
+    id BIGSERIAL PRIMARY KEY,
+    bsale_doc_id TEXT NOT NULL UNIQUE,
+    folio TEXT,
+    rut_proveedor TEXT,
+    razon_social TEXT,
+    monto_total NUMERIC,
+    motivo TEXT DEFAULT 'No representa aumento de stock',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- RLS Policies for ignored_invoices
+ALTER TABLE ignored_invoices ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Permitir lectura pública de ignored_invoices"
+ON ignored_invoices FOR SELECT
+TO public
+USING (true);
+
+CREATE POLICY "Permitir inserción pública de ignored_invoices"
+ON ignored_invoices FOR INSERT
+TO public
+WITH CHECK (true);
+
+CREATE POLICY "Permitir eliminación pública de ignored_invoices"
+ON ignored_invoices FOR DELETE
+TO public
+USING (true);
