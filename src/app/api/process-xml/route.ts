@@ -365,6 +365,90 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
         }
       }
 
+      // VCT (RUT: 85037900-9) - Reglas especiales
+      const vctRut = rutEmisor?.replace(/\./g, '');
+      if (vctRut === '85037900-9' || (data.razonSocial && data.razonSocial.toUpperCase().includes('VCT'))) {
+        console.log('VCT: Aplicando reglas especiales');
+        
+        // 1. Recalcular subtotalNeto = precioUnitario (Valor Unit. Neto c/Descto) × cantidad
+        items.forEach((item: any) => {
+          const nombre = (item.nombre || '').toUpperCase();
+          // No recalcular items de servicio logístico
+          if (!nombre.includes('SERV') || !nombre.includes('LOG')) {
+            if (item.precioUnitario && item.cantidad) {
+              item.subtotalNeto = item.precioUnitario * item.cantidad;
+              console.log(`VCT: ${item.nombre} -> SubtotalNeto recalculado: ${item.precioUnitario} × ${item.cantidad} = ${item.subtotalNeto}`);
+            }
+          }
+        });
+
+        // 2. Extraer items de Servicio Logístico ("Total Serv. Log.") y distribuir como flete
+        const servLogIndices: number[] = [];
+        let totalServLog = 0;
+        
+        items.forEach((item: any, index: number) => {
+          const nombre = (item.nombre || '').toUpperCase();
+          if ((nombre.includes('SERV') && nombre.includes('LOG')) || 
+              nombre.includes('SERVICIO LOGISTICO') || 
+              nombre.includes('SERVICIO LOGÍSTICO') ||
+              nombre.includes('SERV. LOG')) {
+            totalServLog += item.subtotalNeto || ((item.cantidad || 1) * (item.precioUnitario || 0));
+            servLogIndices.push(index);
+            console.log(`VCT: Servicio logístico detectado: ${item.nombre} -> ${item.subtotalNeto || 0}`);
+          }
+        });
+
+        // Eliminar items de servicio logístico (de atrás hacia adelante para no afectar índices)
+        if (servLogIndices.length > 0) {
+          for (let i = servLogIndices.length - 1; i >= 0; i--) {
+            items.splice(servLogIndices[i], 1);
+          }
+
+          // Distribuir flete total entre los productos restantes proporcionalmente
+          const totalUnits = items.reduce((acc: number, item: any) => acc + (Number(item.cantidad) || 0), 0);
+          
+          if (totalUnits > 0) {
+            const fleteUnitario = totalServLog / totalUnits;
+            console.log(`VCT: Distribuyendo ${totalServLog} de serv. logístico entre ${totalUnits} unidades. Flete unitario: ${fleteUnitario}`);
+            
+            items.forEach((item: any) => {
+              item.fleteTotal = fleteUnitario * (item.cantidad || 1);
+            });
+          }
+        }
+
+        // 3. Recalcular impuestos adicionales sobre el subtotalNeto corregido
+        try {
+          const { data: vctTaxRates } = await supabase
+            .from('tax_rates')
+            .select('product_type, tax_percentage');
+
+          if (vctTaxRates) {
+            items.forEach((item: any) => {
+              const nombreUpper = (item.nombre || '').toUpperCase();
+              let taxApplied = false;
+
+              for (const rate of vctTaxRates) {
+                const keyword = (rate.product_type || '').trim().toUpperCase();
+                if (keyword && nombreUpper.includes(keyword)) {
+                  const porcentaje = rate.tax_percentage / 100;
+                  item.impuestosAdicionales = Math.round((item.subtotalNeto || 0) * porcentaje);
+                  console.log(`VCT: Impuesto ${rate.product_type} (${rate.tax_percentage}%) aplicado a ${item.nombre}: ${item.impuestosAdicionales}`);
+                  taxApplied = true;
+                  break;
+                }
+              }
+
+              if (!taxApplied) {
+                item.impuestosAdicionales = 0;
+              }
+            });
+          }
+        } catch (e) {
+          console.error('VCT: Error en detección de impuestos:', e);
+        }
+      }
+
       // Nota: impuestosAdicionales se mantiene como TOTAL por línea (no se normaliza a unitario)
       // El PCU se calcula en el frontend: (subtotalNeto + impuestosAdicionales + fleteTotal) / cantidad
 
