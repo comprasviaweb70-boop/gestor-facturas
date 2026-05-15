@@ -76,6 +76,7 @@ Reglas críticas:
 - \`impuestosAdicionales\`: extrae impuestos adicionales (ILA, impuesto a bebidas alcohólicas/analcohólicas, etc.) aplicados al ítem. Si no hay, pon 0.
 - \`fleteTotal\`: EXTRAE ÚNICAMENTE de la columna "Total Serv. Log." o similar. NO CONFUNDAS con "Precio Unit. Bruto Final" ni con "Total neto C/Serv. Logístico". Si no hay columna de flete por línea, pon 0.
 - Para \`folio\`, busca el número de documento, folio, o N° factura.
+- Los valores numéricos deben ser números puros, sin formato. ¡CUIDADO CON LOS PUNTOS DE MILES! En Chile se usa el punto (.) para los miles y la coma (,) para decimales. Un precio como "5.000" significa CINCO MIL (5000), NO "5.0". Elimina TODOS los puntos antes de convertir el texto a número.
 - Los valores numéricos deben ser números, no strings.
 
 Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explicaciones, sin bloques de código markdown. El primer carácter de tu respuesta debe ser { y el último }.`;
