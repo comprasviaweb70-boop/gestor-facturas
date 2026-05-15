@@ -206,7 +206,7 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
 
         // Regla específica para HIPERKOR (RUT: 78753810K)
         // En este proveedor viene el número de unidades después de una X (ej: PEPSI DES 1.5LT X6 BEBIDA)
-        if (normalizedRut === '78753810K') {
+        if (normalizedRut === '78753810K' || (data.razonSocial && data.razonSocial.toUpperCase().includes('HIPERKOR'))) {
           const hiperkorMatch = nombreUpper.match(/\bX(\d+)\b/);
           if (hiperkorMatch) {
             multiplier = parseInt(hiperkorMatch[1], 10);
@@ -265,7 +265,7 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
 
         if (!taxError && taxRates) {
           // Regla específica para HIPERKOR (RUT: 78753810K) - Valores vienen en Bruto
-          if (normalizedRut === '78753810K') {
+          if (normalizedRut === '78753810K' || (data.razonSocial && data.razonSocial.toUpperCase().includes('HIPERKOR'))) {
             items.forEach((item: any) => {
               const nombreUpper = (item.nombre || '').toUpperCase();
               let taxPercentage = 0;
