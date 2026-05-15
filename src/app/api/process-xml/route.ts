@@ -193,7 +193,10 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
     }
     
     // Lógica de base de datos
-    const { rutEmisor, items } = data;
+    let { rutEmisor, items } = data;
+    
+    // Normalizar RUT (quitar puntos y espacios) para comparaciones consistentes
+    const normalizedRut = rutEmisor?.replace(/\./g, '').trim().toUpperCase();
     
     if (items && Array.isArray(items)) {
       // Regla General: Detectar packs o displays y calcular unidades reales
@@ -203,7 +206,7 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
 
         // Regla específica para HIPERKOR (RUT: 78753810-K)
         // En este proveedor viene el número de unidades después de una X (ej: PEPSI DES 1.5LT X6 BEBIDA)
-        if (rutEmisor === '78753810-K') {
+        if (normalizedRut === '78753810-K') {
           const hiperkorMatch = nombreUpper.match(/\bX(\d+)\b/);
           if (hiperkorMatch) {
             multiplier = parseInt(hiperkorMatch[1], 10);
@@ -262,7 +265,7 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
 
         if (!taxError && taxRates) {
           // Regla específica para HIPERKOR (RUT: 78753810-K) - Valores vienen en Bruto
-          if (rutEmisor === '78753810-K') {
+          if (normalizedRut === '78753810-K') {
             items.forEach((item: any) => {
               const nombreUpper = (item.nombre || '').toUpperCase();
               let taxPercentage = 0;
@@ -329,7 +332,7 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
 
       // Reglas especiales por proveedor
       // MAD CHARLIES (RUT: 77659607-8) - Distribución de flete
-      if (rutEmisor === '77659607-8' || (data.razonSocial && data.razonSocial.toUpperCase().includes('MAD CHARLIES'))) {
+      if (normalizedRut === '77659607-8' || (data.razonSocial && data.razonSocial.toUpperCase().includes('MAD CHARLIES'))) {
         // MAD CHARLIES es proveedor de cerveza, aplicar 20.5% de impuesto a todo (excepto flete)
         items.forEach((item: any) => {
           const name = (item.nombre || '').toUpperCase();
@@ -368,8 +371,7 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
       }
 
       // VCT (RUT: 85037900-9) - Reglas especiales
-      const vctRut = rutEmisor?.replace(/\./g, '');
-      if (vctRut === '85037900-9' || (data.razonSocial && data.razonSocial.toUpperCase().includes('VCT'))) {
+      if (normalizedRut === '85037900-9' || (data.razonSocial && data.razonSocial.toUpperCase().includes('VCT'))) {
         console.log('VCT: Aplicando reglas especiales');
         
         // 1. Recalcular subtotalNeto = precioUnitario (Valor Unit. Neto c/Descto) × cantidad
