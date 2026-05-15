@@ -195,8 +195,8 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
     // Lógica de base de datos
     let { rutEmisor, items } = data;
     
-    // Normalizar RUT (quitar puntos y espacios) para comparaciones consistentes
-    const normalizedRut = rutEmisor?.replace(/\./g, '').trim().toUpperCase();
+    // Normalizar RUT (quitar puntos, guiones y espacios) para comparaciones consistentes (ej: 12345678K)
+    const normalizedRut = rutEmisor?.replace(/[^0-9Kk]/g, '').toUpperCase();
     
     if (items && Array.isArray(items)) {
       // Regla General: Detectar packs o displays y calcular unidades reales
@@ -204,9 +204,9 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
         const nombreUpper = (item.nombre || '').toUpperCase();
         let multiplier = 1;
 
-        // Regla específica para HIPERKOR (RUT: 78753810-K)
+        // Regla específica para HIPERKOR (RUT: 78753810K)
         // En este proveedor viene el número de unidades después de una X (ej: PEPSI DES 1.5LT X6 BEBIDA)
-        if (normalizedRut === '78753810-K') {
+        if (normalizedRut === '78753810K') {
           const hiperkorMatch = nombreUpper.match(/\bX(\d+)\b/);
           if (hiperkorMatch) {
             multiplier = parseInt(hiperkorMatch[1], 10);
@@ -264,8 +264,8 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
           .select('product_type, tax_percentage');
 
         if (!taxError && taxRates) {
-          // Regla específica para HIPERKOR (RUT: 78753810-K) - Valores vienen en Bruto
-          if (normalizedRut === '78753810-K') {
+          // Regla específica para HIPERKOR (RUT: 78753810K) - Valores vienen en Bruto
+          if (normalizedRut === '78753810K') {
             items.forEach((item: any) => {
               const nombreUpper = (item.nombre || '').toUpperCase();
               let taxPercentage = 0;
@@ -331,8 +331,8 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
       }
 
       // Reglas especiales por proveedor
-      // MAD CHARLIES (RUT: 77659607-8) - Distribución de flete
-      if (normalizedRut === '77659607-8' || (data.razonSocial && data.razonSocial.toUpperCase().includes('MAD CHARLIES'))) {
+      // MAD CHARLIES (RUT: 776596078) - Distribución de flete
+      if (normalizedRut === '776596078' || (data.razonSocial && data.razonSocial.toUpperCase().includes('MAD CHARLIES'))) {
         // MAD CHARLIES es proveedor de cerveza, aplicar 20.5% de impuesto a todo (excepto flete)
         items.forEach((item: any) => {
           const name = (item.nombre || '').toUpperCase();
@@ -370,8 +370,8 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
         }
       }
 
-      // VCT (RUT: 85037900-9) - Reglas especiales
-      if (normalizedRut === '85037900-9' || (data.razonSocial && data.razonSocial.toUpperCase().includes('VCT'))) {
+      // VCT (RUT: 850379009) - Reglas especiales
+      if (normalizedRut === '850379009' || (data.razonSocial && data.razonSocial.toUpperCase().includes('VCT'))) {
         console.log('VCT: Aplicando reglas especiales');
         
         // 1. Recalcular subtotalNeto = precioUnitario (Valor Unit. Neto c/Descto) × cantidad
