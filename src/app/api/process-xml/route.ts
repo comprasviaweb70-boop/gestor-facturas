@@ -303,6 +303,7 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
               item.subtotalNeto = netValue;
               item.precioUnitario = netValue / (item.cantidad || 1);
               item.impuestosAdicionales = netValue * taxPercentage; // Total tax for the line
+              item.fleteTotal = 0; // Forzar flete 0 para Hiperkor
               
               console.log(`HIPERKOR: ${item.nombre} -> Bruto: ${grossValue}, Neto: ${netValue}, AddTax: ${item.impuestosAdicionales}`);
             });
