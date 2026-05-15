@@ -84,8 +84,12 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
       const items: PreviewItem[] = extractedData.items.map((item: any) => {
         const code = (item.codigo || '').trim();
         const sku = item.internal_sku || equivalences[code] || null;
-        const pcu = (item.precioUnitario || item.precioNeto || 0) + (item.impuestosAdicionales || 0) + (item.deliveryUnitario || 0);
-        const qty = item.cantidad || 0;
+        const subtotalNeto = Number(item.subtotalNeto) || 0;
+        const imptoAdic = Number(item.impuestosAdicionales) || 0;
+        const flete = Number(item.fleteTotal) || 0;
+        const qty = Number(item.cantidad) || 1;
+        
+        const pcu = (subtotalNeto + imptoAdic + flete) / qty;
 
         let status: 'ok' | 'missing_sku' | 'zero_qty' = 'ok';
         if (!sku) status = 'missing_sku';
