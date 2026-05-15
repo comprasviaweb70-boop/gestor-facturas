@@ -34,6 +34,7 @@ export async function POST(request: Request) {
       "codigo": "Código del proveedor (VlrCodigo)",
       "cantidad": 1,
       "precioUnitario": 100,
+      "precioBrutoUnitario": 0,
       "subtotalNeto": 100,
       "impuestosAdicionales": 0
     }
@@ -42,6 +43,7 @@ export async function POST(request: Request) {
 
 Regla crítica: 
 - \`precioUnitario\` DEBE ser el precio neto unitario (etiqueta <PrcItem>). NO uses el monto total del ítem.
+- \`precioBrutoUnitario\` debe ser el precio unitario bruto (con impuestos) si aparece en el documento, de lo contrario 0.
 - \`subtotalNeto\` DEBE ser el monto total neto del ítem (etiqueta <MontoItem> o Cantidad * Precio Unitario).
 - Si el código del proveedor no viene explícito, intenta derivarlo de la descripción o marca 'S/C'. No inventes datos.
 - Para 'impuestosAdicionales', extrae el monto total de impuestos adicionales aplicados a ese ítem. Si no hay, pon 0.
@@ -61,6 +63,7 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
       "codigo": "Código o SKU del proveedor",
       "cantidad": 1,
       "precioUnitario": 100,
+      "precioBrutoUnitario": 0,
       "subtotalNeto": 100,
       "impuestosAdicionales": 0,
       "fleteTotal": 0
@@ -71,6 +74,7 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
 Reglas críticas:
 - Lee TODOS los productos/ítems de la factura, no omitas ninguno.
 - \`precioUnitario\` DEBE ser el precio neto unitario POR UNIDAD. Si hay una columna "Valor Unit. Neto c/Descto", usa ese valor.
+- \`precioBrutoUnitario\` extrae el precio unitario final con impuestos incluidos si está presente en una columna (ej: "Precio Unit. Bruto"). Si no existe, devuélvelo como 0.
 - \`subtotalNeto\` DEBE ser el monto neto total del ítem (Cantidad × Precio Unitario).
 - \`codigo\` debe ser el código/SKU del producto que aparece en la factura. Si no hay código visible, marca 'S/C'.
 - \`impuestosAdicionales\`: extrae impuestos adicionales (ILA, impuesto a bebidas alcohólicas/analcohólicas, etc.) aplicados al ítem. Si no hay, pon 0.
@@ -204,6 +208,13 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
     // Normalizar RUT (quitar puntos, guiones y espacios) para comparaciones consistentes (ej: 12345678K)
     const normalizedRut = rutEmisor?.replace(/[^0-9Kk]/g, '').toUpperCase();
     
+    // Función reutilizable: Cálculo de Flete Oculto en Precio Bruto
+    const calcularFleteOcultoBruto = (pBrutoUni: number, pNetoUni: number, imptoAdicRate: number) => {
+      if (!pBrutoUni || pBrutoUni <= 0) return 0;
+      const fleteUni = (pBrutoUni - pNetoUni * (1 + 0.19 + imptoAdicRate)) / 1.19;
+      return Math.max(0, fleteUni); // Evitar fletes negativos
+    };
+    
     if (items && Array.isArray(items)) {
       // Regla General: Detectar packs o displays y calcular unidades reales
       items.forEach((item: any) => {
@@ -313,21 +324,30 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
             items.forEach((item: any) => {
               if (!item.impuestosAdicionales || item.impuestosAdicionales === 0) {
                 const nombreUpper = (item.nombre || '').toUpperCase();
+                let taxPercentage = 0;
                 
                 // Regla especial: Bebidas energéticas no identificadas por proveedores (18%)
                 if (nombreUpper.includes('SCOREGORILLA') || nombreUpper.includes('RB ACAI') || nombreUpper.includes('REDBULRED')) {
                   item.impuestosAdicionales = Math.round((item.subtotalNeto || 0) * 0.18);
                   console.log(`Aplicado impuesto especial Bebida Energética (18%) a ${item.nombre}`);
-                  return; // Pasar al siguiente ítem
+                } else {
+                  for (const rate of taxRates) {
+                    const keyword = (rate.product_type || '').trim().toUpperCase();
+                    if (keyword && nombreUpper.includes(keyword)) {
+                      taxPercentage = rate.tax_percentage / 100;
+                      item.impuestosAdicionales = Math.round((item.subtotalNeto || 0) * taxPercentage);
+                      console.log(`Aplicado impuesto ${rate.product_type} (${rate.tax_percentage}%) a ${item.nombre}: ${item.impuestosAdicionales}`);
+                      break; 
+                    }
+                  }
                 }
                 
-                for (const rate of taxRates) {
-                  const keyword = (rate.product_type || '').trim().toUpperCase();
-                  if (keyword && nombreUpper.includes(keyword)) {
-                    const porcentaje = rate.tax_percentage / 100;
-                    item.impuestosAdicionales = Math.round((item.subtotalNeto || 0) * porcentaje);
-                    console.log(`Aplicado impuesto ${rate.product_type} (${rate.tax_percentage}%) a ${item.nombre}: ${item.impuestosAdicionales}`);
-                    break; // Aplicar solo el primero que coincida
+                // Regla específica para JOSE ZAPATA E HIJOS S.A. (RUT: 79576940-4)
+                if (normalizedRut?.startsWith('79576940') || (data.razonSocial && data.razonSocial.toUpperCase().includes('ZAPATA'))) {
+                  if (item.precioBrutoUnitario && item.precioBrutoUnitario > 0) {
+                    const fleteUni = calcularFleteOcultoBruto(item.precioBrutoUnitario, item.precioUnitario, taxPercentage);
+                    item.fleteTotal = Math.round(fleteUni * (item.cantidad || 1));
+                    console.log(`ZAPATA: Flete oculto calculado para ${item.nombre} -> ${item.fleteTotal}`);
                   }
                 }
               }
