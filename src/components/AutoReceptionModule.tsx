@@ -119,7 +119,11 @@ export default function AutoReceptionModule({ onDataExtracted }: AutoReceptionMo
       const resProcess = await fetch('/api/process-xml', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ xmlContent })
+        body: JSON.stringify({ 
+          xmlContent,
+          knownRut: inv.rutProveedor,
+          knownName: inv.razonSocial
+        })
       });
       
       const result = await resProcess.json();

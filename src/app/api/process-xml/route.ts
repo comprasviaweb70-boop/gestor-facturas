@@ -8,7 +8,7 @@ export const maxDuration = 60;
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { xmlContent, fileBase64, fileType } = body;
+    const { xmlContent, fileBase64, fileType, knownRut, knownName } = body;
     
     if (!xmlContent && !fileBase64) {
       return NextResponse.json({ error: 'Falta contenido para procesar (XML, PDF o imagen)' }, { status: 400 });
@@ -193,7 +193,12 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
     }
     
     // Lógica de base de datos
-    let { rutEmisor, items } = data;
+    let { rutEmisor, items, razonSocial } = data;
+    
+    // Fallback a los datos conocidos si Claude no los pudo extraer del XML
+    if (!rutEmisor && knownRut) rutEmisor = knownRut;
+    if (!razonSocial && knownName) razonSocial = knownName;
+    if (knownName && !data.razonSocial) data.razonSocial = knownName;
     
     // Normalizar RUT (quitar puntos, guiones y espacios) para comparaciones consistentes (ej: 12345678K)
     const normalizedRut = rutEmisor?.replace(/[^0-9Kk]/g, '').toUpperCase();
