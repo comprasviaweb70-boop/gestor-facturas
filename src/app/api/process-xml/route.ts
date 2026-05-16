@@ -402,8 +402,8 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
       if (normalizedRut === '788095600' || (data.razonSocial && data.razonSocial.toUpperCase().includes('DIMAK'))) {
         items.forEach((item: any) => {
           const nombreUpper = (item.nombre || '').toUpperCase();
-          // Buscar un número seguido inmediatamente por "°"
-          const match = nombreUpper.match(/(\d+(?:[.,]\d+)?)°/);
+          // Buscar un número seguido por "°" o "º", con o sin espacio
+          const match = nombreUpper.match(/(\d+(?:[.,]\d+)?)\s*[°º]/);
           if (match) {
             const grados = parseFloat(match[1].replace(',', '.'));
             const tasa = grados < 20 ? 0.205 : 0.315;
