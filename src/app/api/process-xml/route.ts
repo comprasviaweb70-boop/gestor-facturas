@@ -42,9 +42,9 @@ export async function POST(request: Request) {
 }
 
 Regla crítica: 
-- `precioUnitario` DEBE ser el precio neto unitario (etiqueta <PrcItem>). NO uses el monto total del ítem.
-- `precioBrutoUnitario` debe ser el precio unitario bruto (con impuestos). Si existe la etiqueta <MontoBrutoItem>, divídela por la cantidad para obtener este valor. De lo contrario, pon 0.
-- `subtotalNeto` DEBE ser el monto total neto del ítem (etiqueta <MontoItem> o Cantidad * Precio Unitario).
+- \`precioUnitario\` DEBE ser el precio neto unitario (etiqueta <PrcItem>). NO uses el monto total del ítem.
+- \`precioBrutoUnitario\` debe ser el precio unitario bruto (con impuestos). Si existe la etiqueta <MontoBrutoItem>, divídela por la cantidad para obtener este valor. De lo contrario, pon 0.
+- \`subtotalNeto\` DEBE ser el monto total neto del ítem (etiqueta <MontoItem> o Cantidad * Precio Unitario).
 - Si el código del proveedor no viene explícito, intenta derivarlo de la descripción o marca 'S/C'. No inventes datos.
 - Para 'impuestosAdicionales', extrae el monto total de impuestos adicionales aplicados a ese ítem. Si no hay, pon 0.
 
