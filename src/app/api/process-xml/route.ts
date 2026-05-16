@@ -77,7 +77,7 @@ Reglas críticas:
 - precioBrutoUnitario: Es el precio final por unidad con impuestos y flete incluidos. Busca columnas como "P.BRUTO", "P. BRUTO" o "PRECIO BRUTO". Si no existe la columna, CALCÚLALO dividiendo el "Total Línea" por la "Cantidad".
 - subtotalNeto: Es Cantidad * Precio Unitario.
 - codigo: Es el SKU del proveedor. Si no hay, usa 'S/C'.
-- tasaImpuestoAdicional: Es la TASA del impuesto adicional (ILA) en decimal (ej: 0.205, 0.315).
+- tasaImpuestoAdicional: Es la TASA del impuesto adicional (ILA). Búscala en la columna dedicada a la tasa de impuestos de la factura (ej: 20.5%, 31.5%). Exprésalo siempre como decimal (0.205, 0.315). Si la columna está vacía, usa 0.
 - fleteTotal: Si el RUT es 79576940-4 (ZAPATA), utiliza la fórmula: (Bruto - (Neto * (1 + 0.19 + tasaImpuestoAdicional))) / 1.19. Multiplica el resultado por la cantidad.
 - impuestosAdicionales: Extrae montos de ILA/Impuestos adicionales.
 
