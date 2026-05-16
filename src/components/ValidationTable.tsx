@@ -560,7 +560,7 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
                             {validatedSkus[item.internal_sku].valid ? (
                               <CheckCircle className="h-4 w-4 text-green-500" />
                             ) : (
-                              <AlertTriangle className="h-4 w-4 text-red-500" title="SKU no encontrado en Bsale" />
+                              <AlertTriangle className="h-4 w-4 text-red-500" />
                             )}
                           </div>
                         )}
