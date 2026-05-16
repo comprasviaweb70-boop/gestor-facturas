@@ -26,7 +26,7 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
   const [validatedSkus, setValidatedSkus] = useState<{ [key: string]: { valid: boolean, checked: boolean } }>({});
 
   const validateSku = useCallback(async (sku: string) => {
-    if (!sku || sku === 'SIN MATCH' || validatedSkus[sku]?.checked) return;
+    if (!sku || sku === 'SIN MATCH') return;
     
     try {
       const res = await fetch(`/api/bsale/search?code=${encodeURIComponent(sku)}`);
@@ -36,7 +36,7 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
     } catch (e) {
       console.error('Error validating SKU:', e);
     }
-  }, [validatedSkus]);
+  }, []); // Dependencias vacías para evitar bucles, usamos el estado previo en el setter
 
   useEffect(() => {
     const skusToCheck = localItems

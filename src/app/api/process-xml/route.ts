@@ -42,17 +42,13 @@ export async function POST(request: Request) {
 }
 
 Regla crítica: 
-- \`precioUnitario\` DEBE ser el precio neto unitario (etiqueta <PrcItem>). NO uses el monto total del ítem.
-- \`precioBrutoUnitario\` debe ser el precio unitario bruto (con impuestos). Si existe la etiqueta <MontoBrutoItem>, divídela por la cantidad para obtener este valor. De lo contrario, pon 0.
-- \`subtotalNeto\` DEBE ser el monto neto total del ítem (etiqueta <MontoItem> o Cantidad * Precio Unitario).
-- \`codigo\` debe ser el código/SKU del proveedor (VlrCodigo). Si no hay, marca 'S/C'.
-- \`fleteTotal\`: Si el proveedor es JOSE ZAPATA E HIJOS S.A. (RUT 79576940-4), calcula el flete oculto así: 
-    Flete_Unitario = Precio_Bruto_Unitario - (Precio_Unitario * (1 + 0.19 + [Tasa_ILA_Si_Aplica]))
-    Guarda en \`fleteTotal\` el resultado de (Flete_Unitario * Cantidad).
-    Si no es Zapata, pon 0.
-- Para 'impuestosAdicionales', extrae el monto total de impuestos adicionales aplicados a ese ítem. Si no hay, pon 0.
+- precioUnitario: Es el precio neto unitario (etiqueta <PrcItem>).
+- precioBrutoUnitario: Es el precio con impuestos (etiqueta <MontoBrutoItem> dividido por cantidad).
+- subtotalNeto: Es el monto total neto del ítem (<MontoItem>).
+- codigo: Es el SKU del proveedor (VlrCodigo).
+- fleteTotal: Si el RUT es 79576940-4 (ZAPATA), calcula: Flete = Bruto - (Neto * (1 + 0.19 + ILA)).
 
-Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explicaciones, sin bloques de código markdown. El primer carácter de tu respuesta debe ser { y el último }.`;
+Responde ÚNICAMENTE con el objeto JSON válido.`;
 
     // Prompt para PDF/Imágenes (visión)
     const documentSystemPrompt = `Actúa como un experto en facturación electrónica chilena. Analiza esta factura (PDF o imagen) y extrae exclusivamente los siguientes datos en formato JSON:
@@ -76,21 +72,15 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
 }
 
 Reglas críticas:
-- Lee TODOS los productos/ítems de la factura, no omitas ninguno.
-- \`precioUnitario\` DEBE ser el precio neto unitario POR UNIDAD. Si hay una columna "Valor Unit. Neto c/Descto", usa ese valor.
-- \`precioBrutoUnitario\` extrae el precio unitario final con impuestos incluidos si está presente en una columna (ej: "Precio Unit. Bruto"). Si no existe, devuélvelo como 0.
-- \`subtotalNeto\` DEBE ser el monto neto total del ítem (Cantidad × Precio Unitario).
-- \`codigo\` debe ser el código/SKU del producto que aparece en la factura. Si no hay código visible, marca 'S/C'.
-- \`impuestosAdicionales\`: extrae impuestos adicionales (ILA, impuesto a bebidas alcohólicas/analcohólicas, etc.) aplicados al ítem. Si no hay, pon 0.
-- \`fleteTotal\`: Si el proveedor es JOSE ZAPATA E HIJOS S.A. (RUT 79576940-4), calcula el flete oculto así: 
-    Flete_Unitario = Precio_Bruto_Unitario - (Precio_Unitario * (1 + 0.19 + [Tasa_ILA_Si_Aplica]))
-    Guarda en \`fleteTotal\` el resultado de (Flete_Unitario * Cantidad).
-    Si no es Zapata y no hay columna de flete explícita, pon 0.
-- Para \`folio\`, busca el número de documento, folio, o N° factura.
-- Los valores numéricos deben ser números puros, sin formato. ¡CUIDADO CON LOS PUNTOS DE MILES! En Chile se usa el punto (.) para los miles y la coma (,) para decimales. Un precio como "5.000" significa CINCO MIL (5000), NO "5.0". Elimina TODOS los puntos antes de convertir el texto a número.
-- Los valores numéricos deben ser números, no strings.
+- Lee TODOS los productos de la factura.
+- precioUnitario: Es el precio neto unitario (etiqueta <PrcItem> en XML).
+- precioBrutoUnitario: Es el precio con impuestos. Si existe <MontoBrutoItem> en XML, divídelo por cantidad.
+- subtotalNeto: Es Cantidad * Precio Unitario.
+- codigo: Es el SKU del proveedor. Si no hay, usa 'S/C'.
+- fleteTotal: Si el RUT es 79576940-4 (ZAPATA), calcula: Flete = Bruto - (Neto * (1 + 0.19 + ILA)).
+- impuestosAdicionales: Extrae montos de ILA/Impuestos adicionales.
 
-Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explicaciones, sin bloques de código markdown. El primer carácter de tu respuesta debe ser { y el último }.`;
+Responde ÚNICAMENTE con el objeto JSON válido.`;
 
     // Seleccionar prompt según tipo de entrada
     const systemPrompt = xmlContent ? xmlSystemPrompt : documentSystemPrompt;
