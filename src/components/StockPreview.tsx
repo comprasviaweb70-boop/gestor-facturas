@@ -87,9 +87,10 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
         const subtotalNeto = Number(item.subtotalNeto) || 0;
         const imptoAdic = Number(item.impuestosAdicionales) || 0;
         const flete = Number(item.fleteTotal) || 0;
-        const qty = Number(item.cantidad) || 1;
+        const qty = Number(item.cantidad);
         
-        const pcu = (subtotalNeto + imptoAdic + flete) / qty;
+        // El PCU debe excluir el flete según la nueva regla de costeo
+        const pcu = (subtotalNeto + imptoAdic) / (qty || 1);
 
         let status: 'ok' | 'missing_sku' | 'zero_qty' = 'ok';
         if (!sku) status = 'missing_sku';
@@ -118,7 +119,7 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
         details: validItems.map(item => ({
           quantity: item.quantity,
           code: item.internalSku,
-          cost: item.cost,
+          cost: Math.round(item.cost), // Asegurar entero para CLP
         })),
       };
 
@@ -266,7 +267,7 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
         });
       }
 
-      r.getCell(6).numFmt = '"$"#,##0';
+      r.getCell(6).numFmt = '0'; // PCU como número puro
       r.getCell(7).numFmt = '"$"#,##0';
       row++;
     }

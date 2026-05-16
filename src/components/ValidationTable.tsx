@@ -23,6 +23,31 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
   const [selectedSkus, setSelectedSkus] = useState<{ [key: string]: string }>({});
   const [processingItems, setProcessingItems] = useState<{ [key: string]: boolean }>({});
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [validatedSkus, setValidatedSkus] = useState<{ [key: string]: { valid: boolean, checked: boolean } }>({});
+
+  const validateSku = useCallback(async (sku: string) => {
+    if (!sku || sku === 'SIN MATCH' || validatedSkus[sku]?.checked) return;
+    
+    try {
+      const res = await fetch(`/api/bsale/search?code=${encodeURIComponent(sku)}`);
+      const data = await res.json();
+      const isValid = data.items && data.items.length > 0;
+      setValidatedSkus(prev => ({ ...prev, [sku]: { valid: isValid, checked: true } }));
+    } catch (e) {
+      console.error('Error validating SKU:', e);
+    }
+  }, [validatedSkus]);
+
+  useEffect(() => {
+    const skusToCheck = localItems
+      .map(item => item.internal_sku)
+      .filter(sku => sku && !validatedSkus[sku]?.checked);
+    
+    if (skusToCheck.length > 0) {
+      // Validar el primer SKU pendiente
+      validateSku(skusToCheck[0]);
+    }
+  }, [localItems, validateSku, validatedSkus]);
 
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'warning' = 'success') => {
     const id = Date.now();
@@ -512,16 +537,34 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
                     </td>
                     {/* SKU Bsale */}
                     <td className="px-3 py-2">
-                      <input
-                        type="text"
-                        placeholder="SKU"
-                        value={item.internal_sku || selectedSkus[id] || ''}
-                        onChange={(e) => {
-                          handleUpdateItem(id, 'internal_sku', e.target.value);
-                          setSelectedSkus(prev => ({ ...prev, [id]: e.target.value }));
-                        }}
-                        className="w-20 border rounded-md px-2 py-1 text-sm focus:ring-1 focus:ring-primary"
-                      />
+                      <div className="relative">
+                        <input
+                          type="text"
+                          placeholder="SKU"
+                          value={item.internal_sku || selectedSkus[id] || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            handleUpdateItem(id, 'internal_sku', val);
+                            setSelectedSkus(prev => ({ ...prev, [id]: val }));
+                          }}
+                          className={`w-24 border rounded-md pl-2 pr-7 py-1 text-sm focus:ring-1 focus:ring-primary ${
+                            item.internal_sku && validatedSkus[item.internal_sku]?.checked && !validatedSkus[item.internal_sku]?.valid
+                              ? 'border-red-300 bg-red-50 text-red-900'
+                              : item.internal_sku && validatedSkus[item.internal_sku]?.valid
+                              ? 'border-green-300 bg-green-50'
+                              : ''
+                          }`}
+                        />
+                        {item.internal_sku && validatedSkus[item.internal_sku]?.checked && (
+                          <div className="absolute right-1.5 top-1/2 -translate-y-1/2">
+                            {validatedSkus[item.internal_sku].valid ? (
+                              <CheckCircle className="h-4 w-4 text-green-500" />
+                            ) : (
+                              <AlertTriangle className="h-4 w-4 text-red-500" title="SKU no encontrado en Bsale" />
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </td>
                     {/* Acciones */}
                     <td className="px-3 py-2 flex space-x-1">
