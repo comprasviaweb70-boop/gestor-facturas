@@ -425,6 +425,7 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
                 <th scope="col" className="px-3 py-3">Cód. Prov.</th>
                 <th scope="col" className="px-3 py-3 text-center">Cant.</th>
                 <th scope="col" className="px-3 py-3 text-right">Subtotal Neto</th>
+                <th scope="col" className="px-3 py-3 text-right">P. Bruto (Ext)</th>
                 <th scope="col" className="px-3 py-3 text-right">Impto. Adic.</th>
                 <th scope="col" className="px-3 py-3 text-right">Flete</th>
                 <th scope="col" className="px-3 py-3 text-right font-bold text-orange-600 bg-orange-50">Total Línea</th>
@@ -490,6 +491,10 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
                         className="w-24 border rounded-md px-2 py-1 text-sm text-right"
                         min="0"
                       />
+                    </td>
+                    {/* P. Bruto Extraído (Solo lectura para auditoría) */}
+                    <td className="px-3 py-2 text-right text-blue-600 font-medium bg-blue-50/30">
+                      ${(Number(item.precioBrutoUnitario) || 0).toLocaleString('es-CL')}
                     </td>
                     {/* Impto. Adicional (editable) */}
                     <td className="px-3 py-2 text-right">
