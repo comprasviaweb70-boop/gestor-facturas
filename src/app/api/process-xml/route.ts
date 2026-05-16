@@ -398,6 +398,21 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
         }
       }
 
+      // DIMAK (RUT: 78809560-0) - Regla de grados alcohólicos
+      if (normalizedRut === '788095600' || (data.razonSocial && data.razonSocial.toUpperCase().includes('DIMAK'))) {
+        items.forEach((item: any) => {
+          const nombreUpper = (item.nombre || '').toUpperCase();
+          // Buscar un número seguido inmediatamente por "°"
+          const match = nombreUpper.match(/(\d+(?:[.,]\d+)?)°/);
+          if (match) {
+            const grados = parseFloat(match[1].replace(',', '.'));
+            const tasa = grados < 20 ? 0.205 : 0.315;
+            item.impuestosAdicionales = Math.round((item.subtotalNeto || 0) * tasa);
+            console.log(`DIMAK: Detectado grado alcohólico (${grados}°) en ${item.nombre}. Aplicando ILA ${tasa * 100}% -> ${item.impuestosAdicionales}`);
+          }
+        });
+      }
+
       // VCT (RUT: 850379009) - Reglas especiales
       if (normalizedRut === '850379009' || (data.razonSocial && data.razonSocial.toUpperCase().includes('VCT'))) {
         console.log('VCT: Aplicando reglas especiales');
