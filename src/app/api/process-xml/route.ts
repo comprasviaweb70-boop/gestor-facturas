@@ -370,7 +370,13 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
                 if (item.precioBrutoUnitario && item.precioBrutoUnitario > 0) {
                   const fleteUni = calcularFleteOcultoBruto(item.precioBrutoUnitario, item.precioUnitario, currentTaxRate);
                   item.fleteTotal = Math.round(fleteUni * (item.cantidad || 1));
-                  console.log(`ZAPATA: Flete oculto calculado para ${item.nombre} -> ${item.fleteTotal} (Tasa ILA: ${currentTaxRate})`);
+                  
+                  // Ajuste: El precio neto base debe ser el real sin el flete oculto
+                  const originalNeto = item.precioUnitario || 0;
+                  item.precioUnitario = originalNeto - fleteUni;
+                  item.subtotalNeto = item.precioUnitario * (item.cantidad || 1);
+                  
+                  console.log(`ZAPATA: Flete oculto ${fleteUni}. Neto original: ${originalNeto} -> Neto real: ${item.precioUnitario} (Tasa ILA: ${currentTaxRate})`);
                 }
               }
             });

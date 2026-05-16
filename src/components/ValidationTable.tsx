@@ -416,7 +416,8 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
                 const imptoAdic = Number(item.impuestosAdicionales) || 0;
                 const flete = Number(item.fleteTotal) || 0;
                 const cantidad = Number(item.cantidad) || 1;
-                const pcu = (subtotalNeto + imptoAdic + flete) / cantidad;
+                // El PCU debe ser el costo neto real + impuestos adicionales, excluyendo el flete para el cálculo del margen
+                const pcu = (subtotalNeto + imptoAdic) / cantidad;
                 
                 return (
                   <tr key={id} className="bg-white border-b hover:bg-gray-50">
