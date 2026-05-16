@@ -73,7 +73,7 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
 
 Reglas críticas:
 - Lee TODOS los productos de la factura.
-- precioUnitario: Es el precio neto unitario (etiqueta <PrcItem> en XML).
+- precioUnitario: Es el precio neto unitario (el valor base por unidad antes de impuestos). Búscalo en la columna de "Precio" o "Neto". No uses el total de la línea.
 - precioBrutoUnitario: Es el precio final por unidad con impuestos y flete incluidos. Busca columnas como "P.BRUTO", "P. BRUTO" o "PRECIO BRUTO". Si no existe la columna, CALCÚLALO dividiendo el "Total Línea" por la "Cantidad".
 - subtotalNeto: Es Cantidad * Precio Unitario.
 - codigo: Es el SKU del proveedor. Si no hay, usa 'S/C'.
