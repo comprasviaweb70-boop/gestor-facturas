@@ -341,14 +341,27 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
                     }
                   }
                 }
+              }
+
+              // Regla específica para JOSE ZAPATA E HIJOS S.A. (RUT: 79576940-4)
+              if (normalizedRut?.startsWith('79576940') || (data.razonSocial && data.razonSocial.toUpperCase().includes('ZAPATA'))) {
+                // Para Zapata necesitamos saber la tasa de impuesto adicional para el cálculo del flete
+                let currentTaxRate = 0;
+                const nombreUpper = (item.nombre || '').toUpperCase();
                 
-                // Regla específica para JOSE ZAPATA E HIJOS S.A. (RUT: 79576940-4)
-                if (normalizedRut?.startsWith('79576940') || (data.razonSocial && data.razonSocial.toUpperCase().includes('ZAPATA'))) {
-                  if (item.precioBrutoUnitario && item.precioBrutoUnitario > 0) {
-                    const fleteUni = calcularFleteOcultoBruto(item.precioBrutoUnitario, item.precioUnitario, taxPercentage);
-                    item.fleteTotal = Math.round(fleteUni * (item.cantidad || 1));
-                    console.log(`ZAPATA: Flete oculto calculado para ${item.nombre} -> ${item.fleteTotal}`);
+                // Si ya tenemos impuestosAdicionales, podemos derivar la tasa o buscarla de nuevo
+                for (const rate of taxRates) {
+                  const keyword = (rate.product_type || '').trim().toUpperCase();
+                  if (keyword && nombreUpper.includes(keyword)) {
+                    currentTaxRate = rate.tax_percentage / 100;
+                    break;
                   }
+                }
+
+                if (item.precioBrutoUnitario && item.precioBrutoUnitario > 0) {
+                  const fleteUni = calcularFleteOcultoBruto(item.precioBrutoUnitario, item.precioUnitario, currentTaxRate);
+                  item.fleteTotal = Math.round(fleteUni * (item.cantidad || 1));
+                  console.log(`ZAPATA: Flete oculto calculado para ${item.nombre} -> ${item.fleteTotal} (Tasa ILA: ${currentTaxRate})`);
                 }
               }
             });
