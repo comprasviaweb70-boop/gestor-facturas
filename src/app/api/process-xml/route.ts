@@ -46,7 +46,7 @@ Regla crítica:
 - precioBrutoUnitario: Es el precio con impuestos (etiqueta <MontoBrutoItem> dividido por cantidad).
 - subtotalNeto: Es el monto total neto del ítem (<MontoItem>).
 - codigo: Es el SKU del proveedor (VlrCodigo).
-- fleteTotal: Si el RUT es 79576940-4 (ZAPATA), calcula: Flete = Bruto - (Neto * (1 + 0.19 + ILA)).
+- fleteTotal: Si el RUT es 79576940-4 (ZAPATA), utiliza la fórmula: (Bruto - (Neto * (1 + 0.19 + ILA))) / 1.19. Multiplica el resultado por la cantidad.
 
 Responde ÚNICAMENTE con el objeto JSON válido.`;
 
@@ -74,10 +74,10 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
 Reglas críticas:
 - Lee TODOS los productos de la factura.
 - precioUnitario: Es el precio neto unitario (etiqueta <PrcItem> en XML).
-- precioBrutoUnitario: Es el precio con impuestos. Si existe <MontoBrutoItem> en XML, divídelo por cantidad.
+- precioBrutoUnitario: Es el precio final por unidad con impuestos y flete incluidos. Si no hay una columna que lo diga explícitamente, CALCÚLALO dividiendo el "Total Línea" (o "Monto Bruto") por la "Cantidad".
 - subtotalNeto: Es Cantidad * Precio Unitario.
 - codigo: Es el SKU del proveedor. Si no hay, usa 'S/C'.
-- fleteTotal: Si el RUT es 79576940-4 (ZAPATA), calcula: Flete = Bruto - (Neto * (1 + 0.19 + ILA)).
+- fleteTotal: Si el RUT es 79576940-4 (ZAPATA), utiliza la fórmula: (Bruto - (Neto * (1 + 0.19 + ILA))) / 1.19. Multiplica el resultado por la cantidad.
 - impuestosAdicionales: Extrae montos de ILA/Impuestos adicionales.
 
 Responde ÚNICAMENTE con el objeto JSON válido.`;
@@ -208,9 +208,9 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
     // Función reutilizable: Cálculo de Flete Oculto en Precio Bruto
     const calcularFleteOcultoBruto = (pBrutoUni: number, pNetoUni: number, imptoAdicRate: number) => {
       if (!pBrutoUni || pBrutoUni <= 0) return 0;
-      // Aplicar fórmula exacta del usuario: Bruto - (Neto * (1 + 0.19 + ILA))
-      const fleteUni = pBrutoUni - (pNetoUni * (1 + 0.19 + imptoAdicRate));
-      return Math.max(0, fleteUni); // Evitar fletes negativos
+      // Fórmula corregida: [[Bruto - (Neto * (1 + 0.19 + ILA))] / 1.19]
+      const fleteUni = (pBrutoUni - (pNetoUni * (1 + 0.19 + imptoAdicRate))) / 1.19;
+      return Math.max(0, fleteUni); 
     };
     
     if (items && Array.isArray(items)) {
