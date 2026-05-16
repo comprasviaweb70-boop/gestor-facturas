@@ -74,7 +74,7 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
 Reglas críticas:
 - Lee TODOS los productos de la factura.
 - precioUnitario: Es el precio neto unitario (etiqueta <PrcItem> en XML).
-- precioBrutoUnitario: Es el precio final por unidad con impuestos y flete incluidos. Si no hay una columna que lo diga explícitamente, CALCÚLALO dividiendo el "Total Línea" (o "Monto Bruto") por la "Cantidad".
+- precioBrutoUnitario: Es el precio final por unidad con impuestos y flete incluidos. Busca columnas como "P.BRUTO", "P. BRUTO" o "PRECIO BRUTO". Si no existe la columna, CALCÚLALO dividiendo el "Total Línea" por la "Cantidad".
 - subtotalNeto: Es Cantidad * Precio Unitario.
 - codigo: Es el SKU del proveedor. Si no hay, usa 'S/C'.
 - fleteTotal: Si el RUT es 79576940-4 (ZAPATA), utiliza la fórmula: (Bruto - (Neto * (1 + 0.19 + ILA))) / 1.19. Multiplica el resultado por la cantidad.
