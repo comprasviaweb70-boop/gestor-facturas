@@ -230,6 +230,15 @@ Responde ÚNICAMENTE con el objeto JSON válido, sin texto adicional, sin explic
             multiplier = parseInt(hiperkorMatch[1] || hiperkorMatch[2] || hiperkorMatch[3], 10);
           }
         }
+        
+        // Regla específica para DIMAK (RUT: 788095600)
+        // Si termina en un número seguido de espacio y X (ej: "CERVEZA 6 X")
+        if (normalizedRut === '788095600' || (data.razonSocial && data.razonSocial.toUpperCase().includes('DIMAK'))) {
+          const dimakMatch = nombreUpper.trim().match(/(\d+)\s+X$/);
+          if (dimakMatch) {
+            multiplier = parseInt(dimakMatch[1], 10);
+          }
+        }
 
         // Si no se encontró multiplicador por regla específica, aplicar reglas generales
         if (multiplier === 1) {
