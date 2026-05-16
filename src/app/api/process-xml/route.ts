@@ -77,7 +77,8 @@ Reglas críticas:
 - precioBrutoUnitario: Es el precio final por unidad con impuestos y flete incluidos. Busca columnas como "P.BRUTO", "P. BRUTO" o "PRECIO BRUTO". Si no existe la columna, CALCÚLALO dividiendo el "Total Línea" por la "Cantidad".
 - subtotalNeto: Es Cantidad * Precio Unitario.
 - codigo: Es el SKU del proveedor. Si no hay, usa 'S/C'.
-- fleteTotal: Si el RUT es 79576940-4 (ZAPATA), utiliza la fórmula: (Bruto - (Neto * (1 + 0.19 + ILA))) / 1.19. Multiplica el resultado por la cantidad.
+- tasaImpuestoAdicional: Es la TASA del impuesto adicional (ILA) en decimal (ej: 0.205, 0.315).
+- fleteTotal: Si el RUT es 79576940-4 (ZAPATA), utiliza la fórmula: (Bruto - (Neto * (1 + 0.19 + tasaImpuestoAdicional))) / 1.19. Multiplica el resultado por la cantidad.
 - impuestosAdicionales: Extrae montos de ILA/Impuestos adicionales.
 
 Responde ÚNICAMENTE con el objeto JSON válido.`;
@@ -353,15 +354,16 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
               // Regla específica para JOSE ZAPATA E HIJOS S.A. (RUT: 79576940-4)
               if (normalizedRut?.startsWith('79576940') || (data.razonSocial && data.razonSocial.toUpperCase().includes('ZAPATA'))) {
                 // Para Zapata necesitamos saber la tasa de impuesto adicional para el cálculo del flete
-                let currentTaxRate = 0;
+                let currentTaxRate = Number(item.tasaImpuestoAdicional) || 0;
                 const nombreUpper = (item.nombre || '').toUpperCase();
                 
-                // Si ya tenemos impuestosAdicionales, podemos derivar la tasa o buscarla de nuevo
-                for (const rate of taxRates) {
-                  const keyword = (rate.product_type || '').trim().toUpperCase();
-                  if (keyword && nombreUpper.includes(keyword)) {
-                    currentTaxRate = rate.tax_percentage / 100;
-                    break;
+                if (currentTaxRate === 0) {
+                  for (const rate of taxRates) {
+                    const keyword = (rate.product_type || '').trim().toUpperCase();
+                    if (keyword && nombreUpper.includes(keyword)) {
+                      currentTaxRate = rate.tax_percentage / 100;
+                      break;
+                    }
                   }
                 }
 
