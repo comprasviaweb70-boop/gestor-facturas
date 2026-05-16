@@ -208,7 +208,8 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
     // Función reutilizable: Cálculo de Flete Oculto en Precio Bruto
     const calcularFleteOcultoBruto = (pBrutoUni: number, pNetoUni: number, imptoAdicRate: number) => {
       if (!pBrutoUni || pBrutoUni <= 0) return 0;
-      const fleteUni = (pBrutoUni - pNetoUni * (1 + 0.19 + imptoAdicRate)) / 1.19;
+      // Aplicar fórmula exacta del usuario: Bruto - (Neto * (1 + 0.19 + ILA))
+      const fleteUni = pBrutoUni - (pNetoUni * (1 + 0.19 + imptoAdicRate));
       return Math.max(0, fleteUni); // Evitar fletes negativos
     };
     
