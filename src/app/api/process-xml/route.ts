@@ -73,6 +73,7 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
 
 Reglas críticas:
 - Lee TODOS los productos de la factura.
+- cantidad: Es la cantidad del producto. Si en la factura viene con coma decimal (ej: "0,6"), conviértela a un número decimal válido usando punto (ej: 0.6). Nunca lo dejes como texto ni con coma.
 - precioUnitario: Es el precio neto unitario. Búscalo en la columna "T.NETO" y DIVÍDELO por la "Cantidad" para obtener el valor unitario. Si no existe "T.NETO", usa la columna "Precio" o "Neto". No uses el total bruto.
 - precioBrutoUnitario: Es el precio final por unidad con impuestos y flete incluidos. Busca columnas como "P.BRUTO", "P. BRUTO" o "PRECIO BRUTO". Si no existe la columna, CALCÚLALO dividiendo el "Total Línea" por la "Cantidad".
 - subtotalNeto: Es Cantidad * Precio Unitario.
@@ -217,6 +218,34 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
     if (items && Array.isArray(items)) {
       // Regla General: Detectar packs o displays y calcular unidades reales
       items.forEach((item: any) => {
+        // Sanitizar cantidad y valores numéricos: convertir string con comas a number (ej: "0,6" -> 0.6)
+        if (typeof item.cantidad === 'string') {
+          item.cantidad = parseFloat(item.cantidad.replace(/,/g, '.'));
+        }
+        item.cantidad = Number(item.cantidad) || 0;
+
+        const parseSpanishNumber = (val: any) => {
+          if (typeof val === 'string') {
+            let str = val.trim();
+            if (str.includes('.') && str.includes(',')) {
+              str = str.replace(/\./g, '').replace(/,/g, '.');
+            } else if (str.includes(',')) {
+              str = str.replace(/,/g, '.');
+            }
+            const num = parseFloat(str);
+            return isNaN(num) ? 0 : num;
+          }
+          if (typeof val === 'number') {
+            return isNaN(val) ? 0 : val;
+          }
+          return 0;
+        };
+
+        item.precioUnitario = parseSpanishNumber(item.precioUnitario);
+        item.precioBrutoUnitario = parseSpanishNumber(item.precioBrutoUnitario);
+        item.subtotalNeto = parseSpanishNumber(item.subtotalNeto);
+        item.impuestosAdicionales = parseSpanishNumber(item.impuestosAdicionales);
+
         const nombreUpper = (item.nombre || '').toUpperCase();
         let multiplier = 1;
 
