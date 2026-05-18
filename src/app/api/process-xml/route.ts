@@ -239,6 +239,17 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
           }
         }
 
+        // Regla específica para BAT Chile S.A (RUT: 88502900-0)
+        // Este proveedor vende cigarros. En la columna cantidad indica la cantidad de paquetes,
+        // por lo que para convertirlo a unidades reales se debe multiplicar por el valor (10 o 20)
+        // que está al final del detalle de cada producto y acompañado de inmediato de una S (ej: 20s o 10s)
+        if (normalizedRut === '885029000' || (data.razonSocial && data.razonSocial.toUpperCase().includes('BAT CHILE'))) {
+          const batMatch = nombreUpper.match(/\b(10|20)S\b/);
+          if (batMatch) {
+            multiplier = parseInt(batMatch[1], 10);
+          }
+        }
+
         // Si no se encontró multiplicador por regla específica, aplicar reglas generales
         if (multiplier === 1) {
           // Caso 1: Patrón AxBxC (ej: 12X30X15 GRS), el segundo término es la cantidad de unidades
