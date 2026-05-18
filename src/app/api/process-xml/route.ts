@@ -273,7 +273,7 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
         // por lo que para convertirlo a unidades reales se debe multiplicar por el valor (10 o 20)
         // que está al final del detalle de cada producto y acompañado de inmediato de una S (ej: 20s o 10s)
         if (normalizedRut === '885029000' || (data.razonSocial && data.razonSocial.toUpperCase().includes('BAT CHILE'))) {
-          const batMatch = nombreUpper.match(/\b(10|20)S\b/);
+          const batMatch = nombreUpper.match(/(10|20)S\b/);
           if (batMatch) {
             multiplier = parseInt(batMatch[1], 10);
           }
