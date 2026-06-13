@@ -24,22 +24,26 @@ export async function POST(request: Request) {
     // Prompt para XML (existente)
     const xmlSystemPrompt = `Actúa como un experto en facturación electrónica chilena (DTE). Analiza este XML y extrae exclusivamente los siguientes datos en formato JSON:
 
-{
-  "rutEmisor": "RUT del Emisor (etiqueta <RUTEmisor>)",
-  "folio": "Folio de la factura",
-  "razonSocial": "Razón Social del Emisor",
-  "items": [
     {
-      "nombre": "Nombre del producto",
-      "codigo": "Código del proveedor (VlrCodigo)",
-      "cantidad": 1,
-      "precioUnitario": 100,
-      "precioBrutoUnitario": 0,
-      "subtotalNeto": 100,
-      "impuestosAdicionales": 0
+      "rutEmisor": "RUT del Emisor (etiqueta <RUTEmisor>)",
+      "folio": "Folio de la factura",
+      "razonSocial": "Razón Social del Emisor",
+      "items": [
+        {
+          "nombre": "Nombre del producto",
+          "codigo": "Código del proveedor (buscar en <CdgItem><VlrCodigo>, <Codigo>, o <Sku>)",
+          "cantidad": 1,
+          "precioUnitario": 100,
+          "precioBrutoUnitario": 0,
+          "subtotalNeto": 100,
+          "impuestosAdicionales": 0
+        }
+      ]
     }
-  ]
-}
+
+    Reglas adicionales:
+    - Si no encuentra VlrCodigo, buscar en <CdgItem><Codigo> o <Sku>
+    - Si no hay código identificable, usar 'S/C'`
 
 Regla crítica: 
 - precioUnitario: Es el precio neto unitario (etiqueta <PrcItem>).
@@ -132,59 +136,119 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
       betaHeaders.push('pdfs-2024-09-25');
     }
 
-    const result = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 4000,
-      temperature: 0,
-      system: [
-        {
-          type: "text",
-          text: systemPrompt,
-          // @ts-ignore
-          cache_control: { type: "ephemeral" }
-        }
-      ],
-      messages: [
-        {
-          role: "user",
-          content: userContent
-        }
-      ]
-    }, { 
-      headers: { 'anthropic-beta': betaHeaders.join(',') }
-    });
-    
-    const text = result.content[0].type === 'text' ? result.content[0].text : '';
-    
-    // Intentar extraer el JSON del texto - múltiples estrategias
-    let jsonText = text.trim();
-    
-    // Estrategia 1: Remover bloques de código markdown (```json ... ``` o ``` ... ```)
-    const codeBlockMatch = jsonText.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
-    if (codeBlockMatch) {
-      jsonText = codeBlockMatch[1].trim();
-    }
-    
-    // Estrategia 2: Intentar parsear directamente (podría ser un objeto o array válido)
-    let data;
-    try {
-      data = JSON.parse(jsonText);
-    } catch {
-      // Estrategia 3: Extraer array JSON [...] o objeto JSON {...}
-      const arrayMatch = jsonText.match(/\[[\s\S]*\]/);
-      const objectMatch = jsonText.match(/\{[\s\S]*\}/);
-      
-      const candidate = arrayMatch ? arrayMatch[0] : (objectMatch ? objectMatch[0] : jsonText);
-      
-      try {
-        data = JSON.parse(candidate);
-      } catch (e) {
-        console.error('Failed to parse JSON from Claude. Raw text:', text);
-        const preview = text.substring(0, 200).replace(/\n/g, ' ');
-        return NextResponse.json({ 
-          error: `El análisis no generó JSON válido. Respuesta de Claude: "${preview}..."`, 
-        }, { status: 500 });
+    const messages: any[] = [
+      {
+        role: "user",
+        content: userContent
       }
+    ];
+
+    let text = '';
+    let lastResult: any;
+    const maxRetries = 3;
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      const result = await anthropic.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 16384,
+        temperature: 0,
+        system: [
+          {
+            type: "text",
+            text: systemPrompt,
+            // @ts-ignore
+            cache_control: { type: "ephemeral" }
+          }
+        ],
+        messages: messages
+      }, {
+        headers: { 'anthropic-beta': betaHeaders.join(',') }
+      });
+
+      lastResult = result;
+      const partial = result.content[0]?.type === 'text' ? result.content[0].text : '';
+      text += partial;
+
+      // Si la respuesta terminó naturalmente, salir
+      if (result.stop_reason !== 'max_tokens') {
+        break;
+      }
+
+      // Respuesta truncada: solicitar continuación
+      console.log(`Attempt ${attempt + 1}: Response truncated at ${text.length} chars. Requesting continuation...`);
+      messages.push(
+        { role: "assistant", content: partial },
+        { role: "user", content: "Continúa exactamente donde te quedaste, sin repetir nada ya dicho. Responde solo con el JSON completo concatenado (sin bloques markdown, sin preámbulos)." }
+      );
+    }
+
+    if (lastResult?.stop_reason === 'max_tokens') {
+      console.warn(`JSON truncado después de ${maxRetries} intentos. Se intentará parsear lo obtenido.`);
+    }
+
+    // Intentar extraer el JSON del texto - múltiples estrategias
+    let data = null;
+    const rawText = text.trim();
+
+    // --- Estrategia robusta de extracción de JSON ---
+        const extractJson = (str: string): any => {
+      let cleaned = str.trim();
+
+      // Estrategia 1: Buscar el primer '{' y el último '}' para extraer solo el objeto
+      const firstBrace = cleaned.indexOf('{');
+      const lastBrace = cleaned.lastIndexOf('}');
+      
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        const potentialJson = cleaned.substring(firstBrace, lastBrace + 1);
+        try {
+          return JSON.parse(potentialJson);
+        } catch (e) {
+          // Si falla, continuamos con las otras estrategias
+        }
+      }
+
+      // Estrategia 2: Buscar el primer '[' y el último ']' para arrays
+      const firstBracket = cleaned.indexOf('[');
+      const lastBracket = cleaned.lastIndexOf(']');
+      if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
+        const potentialArray = cleaned.substring(firstBracket, lastBracket + 1);
+        try {
+          return JSON.parse(potentialArray);
+        } catch (e) {
+          // Continuar...
+        }
+      }
+
+      // Estrategia 3: Fallback a reparaciones básicas
+      const fixJson = (s: string) => {
+        try {
+          return JSON.parse(s
+            .replace(/'/g, '"')
+            .replace(/(\w+):/g, '"$1":')
+            .replace(/,(\s*[}\]])/g, '$1')
+          );
+        } catch { return null; }
+      };
+
+      const finalAttempt = fixJson(cleaned);
+      if (finalAttempt) return finalAttempt;
+
+      throw new Error('No se pudo extraer JSON válido de la respuesta de Claude');
+    }
+
+
+
+    try {
+      data = extractJson(rawText);
+    } catch (parseError) {
+      console.error('Failed to parse JSON from Claude.');
+      console.error('Raw response from Claude:', text.substring(0, 500));
+      console.error('Parse error:', parseError);
+
+      const preview = text.substring(0, 300).replace(/\n/g, ' ');
+      return NextResponse.json({
+        error: `Error al procesar factura: El análisis no generó JSON válido. Respuesta de Claude: ${preview}...`,
+      }, { status: 500 });
     }
     
     // Si Claude devolvió un array (ej: CCU con múltiples DTEs), tomar el primer elemento
