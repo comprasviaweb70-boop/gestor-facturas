@@ -24,26 +24,22 @@ export async function POST(request: Request) {
     // Prompt para XML (existente)
     const xmlSystemPrompt = `Actúa como un experto en facturación electrónica chilena (DTE). Analiza este XML y extrae exclusivamente los siguientes datos en formato JSON:
 
+{
+  "rutEmisor": "RUT del Emisor (etiqueta <RUTEmisor>)",
+  "folio": "Folio de la factura",
+  "razonSocial": "Razón Social del Emisor",
+  "items": [
     {
-      "rutEmisor": "RUT del Emisor (etiqueta <RUTEmisor>)",
-      "folio": "Folio de la factura",
-      "razonSocial": "Razón Social del Emisor",
-      "items": [
-        {
-          "nombre": "Nombre del producto",
-          "codigo": "Código del proveedor (buscar en <CdgItem><VlrCodigo>, <Codigo>, o <Sku>)",
-          "cantidad": 1,
-          "precioUnitario": 100,
-          "precioBrutoUnitario": 0,
-          "subtotalNeto": 100,
-          "impuestosAdicionales": 0
-        }
-      ]
+      "nombre": "Nombre del producto",
+      "codigo": "Código del proveedor (VlrCodigo)",
+      "cantidad": 1,
+      "precioUnitario": 100,
+      "precioBrutoUnitario": 0,
+      "subtotalNeto": 100,
+      "impuestosAdicionales": 0
     }
-
-    Reglas adicionales:
-    - Si no encuentra VlrCodigo, buscar en <CdgItem><Codigo> o <Sku>
-    - Si no hay código identificable, usar 'S/C'`
+  ]
+}
 
 Regla crítica: 
 - precioUnitario: Es el precio neto unitario (etiqueta <PrcItem>).
@@ -169,12 +165,10 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
       const partial = result.content[0]?.type === 'text' ? result.content[0].text : '';
       text += partial;
 
-      // Si la respuesta terminó naturalmente, salir
       if (result.stop_reason !== 'max_tokens') {
         break;
       }
 
-      // Respuesta truncada: solicitar continuación
       console.log(`Attempt ${attempt + 1}: Response truncated at ${text.length} chars. Requesting continuation...`);
       messages.push(
         { role: "assistant", content: partial },
@@ -186,41 +180,28 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
       console.warn(`JSON truncado después de ${maxRetries} intentos. Se intentará parsear lo obtenido.`);
     }
 
-    // Intentar extraer el JSON del texto - múltiples estrategias
+    // --- Extracción robusta de JSON ---
     let data = null;
     const rawText = text.trim();
 
-    // --- Estrategia robusta de extracción de JSON ---
-        const extractJson = (str: string): any => {
+    const extractJson = (str: string): any => {
       let cleaned = str.trim();
 
-      // Estrategia 1: Buscar el primer '{' y el último '}' para extraer solo el objeto
       const firstBrace = cleaned.indexOf('{');
       const lastBrace = cleaned.lastIndexOf('}');
-      
       if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
         const potentialJson = cleaned.substring(firstBrace, lastBrace + 1);
-        try {
-          return JSON.parse(potentialJson);
-        } catch (e) {
-          // Si falla, continuamos con las otras estrategias
-        }
+        try { return JSON.parse(potentialJson); } catch {}
       }
 
-      // Estrategia 2: Buscar el primer '[' y el último ']' para arrays
       const firstBracket = cleaned.indexOf('[');
       const lastBracket = cleaned.lastIndexOf(']');
       if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
         const potentialArray = cleaned.substring(firstBracket, lastBracket + 1);
-        try {
-          return JSON.parse(potentialArray);
-        } catch (e) {
-          // Continuar...
-        }
+        try { return JSON.parse(potentialArray); } catch {}
       }
 
-      // Estrategia 3: Fallback a reparaciones básicas
-      const fixJson = (s: string) => {
+      const fixJson = (s: string): any => {
         try {
           return JSON.parse(s
             .replace(/'/g, '"')
@@ -230,13 +211,11 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
         } catch { return null; }
       };
 
-      const finalAttempt = fixJson(cleaned);
-      if (finalAttempt) return finalAttempt;
+      const fixed = fixJson(cleaned);
+      if (fixed) return fixed;
 
       throw new Error('No se pudo extraer JSON válido de la respuesta de Claude');
-    }
-
-
+    };
 
     try {
       data = extractJson(rawText);
@@ -244,12 +223,13 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
       console.error('Failed to parse JSON from Claude.');
       console.error('Raw response from Claude:', text.substring(0, 500));
       console.error('Parse error:', parseError);
-
       const preview = text.substring(0, 300).replace(/\n/g, ' ');
       return NextResponse.json({
         error: `Error al procesar factura: El análisis no generó JSON válido. Respuesta de Claude: ${preview}...`,
       }, { status: 500 });
     }
+
+
     
     // Si Claude devolvió un array (ej: CCU con múltiples DTEs), tomar el primer elemento
     if (Array.isArray(data)) {
