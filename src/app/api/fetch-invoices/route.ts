@@ -9,41 +9,43 @@ export async function GET() {
     }, { status: 401 });
   }
 
-  // Calcular año y mes actual dinámicamente
   const now = new Date();
   const year = now.getFullYear();
-  const month = now.getMonth() + 1; // getMonth() es 0-indexed
-  
-  const baseUrl = `https://api.bsale.cl/v1/third_party_documents.json?limit=50&year=${year}&month=${month}&codesii=33`;
-  
+  const currentMonth = now.getMonth() + 1; // getMonth() es 0-indexed
+
   try {
     const allItems: any[] = [];
-    let offset = 0;
     let totalCount = 0;
 
-    // Paginar para traer todos los documentos del mes
-    while (true) {
-      const url = `${baseUrl}&offset=${offset}`;
-      const res = await fetch(url, {
-        headers: {
-          'access_token': token,
-          'Accept': 'application/json'
+    // Iterar desde enero hasta el mes actual para capturar todas las pendientes
+    for (let month = 1; month <= currentMonth; month++) {
+      const baseUrl = `https://api.bsale.cl/v1/third_party_documents.json?limit=50&year=${year}&month=${month}&codesii=33`;
+      let offset = 0;
+
+      while (true) {
+        const url = `${baseUrl}&offset=${offset}`;
+        const res = await fetch(url, {
+          headers: {
+            'access_token': token,
+            'Accept': 'application/json'
+          }
+        });
+
+        if (!res.ok) {
+          console.warn(`Error Bsale mes ${month}: ${res.status}`);
+          break;
         }
-      });
-      
-      if (!res.ok) {
-        throw new Error(`Error Bsale: ${res.status}`);
+
+        const data = await res.json();
+        totalCount += data.count || 0;
+        if (data.items) allItems.push(...data.items);
+        if (!data.next || (data.items && data.items.length < 50)) break;
+        offset += 50;
       }
-      
-      const data = await res.json();
-      totalCount = data.count || 0;
-      if (data.items) allItems.push(...data.items);
-      if (!data.next || allItems.length >= totalCount) break;
-      offset += 50;
     }
 
     // Filtrar: solo documentos SIN estado SII (no procesados)
-    const pendingItems = allItems.filter((doc: any) => 
+    const pendingItems = allItems.filter((doc: any) =>
       !doc.siiStatus || doc.siiStatus.length === 0
     );
 
@@ -64,7 +66,7 @@ export async function GET() {
         procesada: false
       }))
       .sort((a: any, b: any) => b.emissionTimestamp - a.emissionTimestamp);
-    
+
     return NextResponse.json({
       total: totalCount,
       pendientes: invoices.length,
