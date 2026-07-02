@@ -33,7 +33,9 @@ export async function GET(request: Request) {
         docNumber = docData.number || docId;
         docClientCode = docData.clientCode || '';
       }
-    } catch {}
+    } catch (e) {
+      console.warn(`Error obteniendo datos del documento ${docId}:`, e);
+    }
 
     const urls = [
       // Detalle del third_party_document
@@ -93,6 +95,15 @@ export async function GET(request: Request) {
       const res = await fetch(url, {
         headers: { 'access_token': token, 'Accept': 'application/json' },
       });
+
+      if (!res.ok) {
+        return NextResponse.json({
+          diagnóstico: 'ERROR DE API',
+          tokenPreview,
+          error: `Bsale respondió con estado ${res.status} en offset ${offset}`,
+        }, { status: res.status });
+      }
+
       const data = await res.json();
       totalCount = data.count || 0;
       if (data.items) allItems.push(...data.items);

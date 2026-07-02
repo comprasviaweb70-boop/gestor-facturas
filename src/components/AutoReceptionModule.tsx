@@ -80,7 +80,7 @@ export default function AutoReceptionModule({ onDataExtracted }: AutoReceptionMo
 
       if (error) {
         console.error('Error guardando en Supabase:', error);
-        // Si la tabla no existe, crear la entrada solo en memoria
+        console.warn('Factura ignorada solo en memoria (no persistida). Error:', error.message);
       }
 
       // Actualizar estado local
@@ -88,6 +88,7 @@ export default function AutoReceptionModule({ onDataExtracted }: AutoReceptionMo
       setInvoices(prev => prev.filter(i => i.id !== inv.id));
     } catch (e: any) {
       console.error('Error al ignorar:', e);
+      alert('Error al ignorar la factura: ' + (e.message || 'Error desconocido'));
     } finally {
       setIgnoringId(null);
     }

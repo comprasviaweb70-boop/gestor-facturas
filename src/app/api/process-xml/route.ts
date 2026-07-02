@@ -241,6 +241,7 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
     }
     
     // Lógica de base de datos
+    const warnings: string[] = [];
     let { rutEmisor, items, razonSocial } = data;
     
     // Fallback a los datos conocidos si Claude no los pudo extraer del XML
@@ -468,6 +469,7 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
         }
       } catch (e) {
         console.error('Error in tax auto-detection:', e);
+        warnings.push(`Error en detección automática de impuestos: ${e instanceof Error ? e.message : String(e)}`);
       }
 
       // Reglas especiales por proveedor
@@ -604,6 +606,7 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
           }
         } catch (e) {
           console.error('VCT: Error en detección de impuestos:', e);
+          warnings.push(`VCT: Error en detección de impuestos: ${e instanceof Error ? e.message : String(e)}`);
         }
       }
 
@@ -621,6 +624,7 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
 
         if (eqError) {
           console.error('Error fetching equivalences:', eqError);
+          warnings.push(`Error al buscar equivalencias: ${eqError.message}`);
         }
 
         // Crear mapa para búsqueda rápida
@@ -651,6 +655,7 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
 
             if (updateError) {
               console.error('Error in massive update for rut_provider:', updateError);
+              warnings.push(`Error al actualizar RUT del proveedor: ${updateError.message}`);
             } else {
               console.log('Auto-llenado exitoso para el proveedor ' + supplierName + ' con RUT ' + rutEmisor);
             }
@@ -683,12 +688,17 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
 
           if (queueError) {
             console.error('Error inserting into queue in batch:', queueError);
+            warnings.push(`Error al insertar productos en cola de validación: ${queueError.message}`);
           }
         }
       }
     }
 
-    return NextResponse.json(data);
+    const response = { ...data };
+    if (warnings.length > 0) {
+      response.warnings = warnings;
+    }
+    return NextResponse.json(response);
   } catch (error) {
     console.error('Error processing document with Claude:', error);
     return NextResponse.json({ error: 'Error al procesar el documento con Claude' }, { status: 500 });

@@ -112,6 +112,7 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
       }
     } catch (error) {
       console.error('Error searching equivalences in table:', error);
+      showToast('Error al buscar equivalencias. Verifica la conexión.', 'error');
     }
   };
 
@@ -182,6 +183,7 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
       searchEquivalences(mappedQueue);
     } catch (error) {
       console.error('Error fetching queue:', error);
+      showToast('Error al cargar la cola de validación.', 'error');
     } finally {
       setLoading(false);
     }
