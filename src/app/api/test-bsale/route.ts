@@ -1,19 +1,21 @@
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
+  // Bloquear en producción
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Endpoint deshabilitado en producción.' }, { status: 403 });
+  }
+
   const token = process.env.BSALE_ACCESS_TOKEN;
   const { searchParams } = new URL(request.url);
   const docId = searchParams.get('docId');
 
-  // Diagnóstico: mostrar qué token se está usando (solo primeros/últimos chars)
-  const tokenPreview = token
-    ? `${token.substring(0, 4)}...${token.substring(token.length - 4)} (${token.length} chars)`
-    : 'NO CONFIGURADO';
+  const tokenStatus = token && token !== 'ejemplo_temporal' ? 'CONFIGURADO' : 'NO CONFIGURADO';
 
   if (!token || token === 'ejemplo_temporal') {
     return NextResponse.json({
       diagnóstico: 'TOKEN NO VÁLIDO',
-      tokenPreview,
+      tokenStatus,
       mensaje: 'El token es "ejemplo_temporal" o no existe. Configura el token real de producción en Vercel.',
     });
   }
@@ -125,7 +127,7 @@ export async function GET(request: Request) {
       diagnóstico: {
         totalDocumentos: totalCount,
         documentosTraidos: allItems.length,
-        tokenPreview,
+        tokenStatus,
       },
       distribucionEstados: statusDistribution,
       ejemplosPorEstado: statusExamples,
@@ -133,7 +135,7 @@ export async function GET(request: Request) {
   } catch (error: any) {
     return NextResponse.json({
       diagnóstico: 'ERROR DE RED',
-      tokenPreview,
+      tokenStatus,
       error: error.message,
     }, { status: 500 });
   }
