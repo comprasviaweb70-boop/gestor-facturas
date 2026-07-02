@@ -16,6 +16,7 @@ export async function GET() {
   try {
     const allItems: any[] = [];
     let totalCount = 0;
+    const failedMonths: { month: number; status: number }[] = [];
 
     // Iterar desde enero hasta el mes actual para capturar todas las pendientes
     for (let month = 1; month <= currentMonth; month++) {
@@ -33,6 +34,7 @@ export async function GET() {
 
         if (!res.ok) {
           console.warn(`Error Bsale mes ${month}: ${res.status}`);
+          failedMonths.push({ month, status: res.status });
           break;
         }
 
@@ -67,11 +69,16 @@ export async function GET() {
       }))
       .sort((a: any, b: any) => b.emissionTimestamp - a.emissionTimestamp);
 
+    const warnings = failedMonths.length > 0
+      ? failedMonths.map(f => `No se pudieron obtener facturas del mes ${f.month} (HTTP ${f.status})`)
+      : undefined;
+
     return NextResponse.json({
       total: totalCount,
       pendientes: invoices.length,
       procesadas: totalCount - pendingItems.length,
-      invoices
+      invoices,
+      ...(warnings && { warnings }),
     });
   } catch (error: any) {
     console.error(`Error consultando documentos de proveedores:`, error);

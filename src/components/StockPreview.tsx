@@ -39,16 +39,22 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
         if (res.ok) {
           const data = await res.json();
           if (data.items && data.items.length > 0) {
-            // Buscar sucursal Valdivia o usar la primera
             const valdivia = data.items.find((o: any) => 
               (o.name || '').toLowerCase().includes('valdivia')
             );
             setOfficeId(valdivia ? valdivia.id : data.items[0].id);
+          } else {
+            console.warn('No se encontraron sucursales en Bsale, usando ID por defecto');
+            setOfficeId(1);
           }
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          console.error(`Error obteniendo sucursales (${res.status}):`, errData.error || res.statusText);
+          setOfficeId(1);
         }
       } catch (e) {
-        console.error('Error loading offices:', e);
-        setOfficeId(1); // Fallback
+        console.error('Error de conexión al cargar sucursales:', e);
+        setOfficeId(1);
       }
     };
     loadOffice();
@@ -126,6 +132,7 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
       setJsonPayload(payload);
     } catch (error) {
       console.error('Error building preview:', error);
+      alert('Error al construir la vista previa: ' + (error instanceof Error ? error.message : 'Error desconocido'));
     } finally {
       setLoading(false);
     }
