@@ -1,29 +1,26 @@
 import { NextResponse } from 'next/server';
+import { getBsaleToken, isBsaleTokenValid, unauthorizedResponse, bsaleFetch, errorResponse } from '@/lib/bsale';
 
 export async function POST(request: Request) {
-  const token = process.env.BSALE_ACCESS_TOKEN;
+  const token = getBsaleToken();
 
-  if (!token || token === 'ejemplo_temporal') {
-    return NextResponse.json({
-      error: 'Token de Bsale no configurado. Configura BSALE_ACCESS_TOKEN en Vercel.'
-    }, { status: 401 });
+  if (!isBsaleTokenValid(token)) {
+    return unauthorizedResponse();
   }
 
   try {
     const body = await request.json();
     const { folio, razonSocial, officeId, items } = body;
 
-    // Validaciones
     if (!items || !Array.isArray(items) || items.length === 0) {
-      return NextResponse.json({ error: 'No hay productos para ingresar al stock.' }, { status: 400 });
+      return errorResponse('No hay productos para ingresar al stock.', 400);
     }
 
     if (!officeId) {
-      return NextResponse.json({ error: 'Falta el ID de la sucursal (officeId).' }, { status: 400 });
+      return errorResponse('Falta el ID de la sucursal (officeId).', 400);
     }
 
-    // Verificar que todos los items tengan SKU y cantidad
-    const invalidItems = items.filter((item: any) => !item.code || item.quantity <= 0);
+    const invalidItems = items.filter((item: { code?: string; quantity?: number }) => !item.code || (item.quantity ?? 0) <= 0);
     if (invalidItems.length > 0) {
       return NextResponse.json({
         error: `${invalidItems.length} producto(s) no tienen SKU o tienen cantidad 0.`,
@@ -31,13 +28,12 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
-    // Construir payload para Bsale
     const payload = {
       document: "Factura",
       officeId: Number(officeId),
       documentNumber: String(folio || ''),
       note: `Recepción automática - ${razonSocial || 'Proveedor'}`,
-      details: items.map((item: any) => ({
+      details: items.map((item: { quantity: number; code: string; cost: number }) => ({
         quantity: Number(item.quantity),
         code: String(item.code),
         cost: Number(item.cost),
@@ -47,15 +43,9 @@ export async function POST(request: Request) {
     console.log('=== ENVIANDO RECEPCIÓN DE STOCK A BSALE ===');
     console.log('Payload:', JSON.stringify(payload, null, 2));
 
-    // Enviar a Bsale
-    const res = await fetch('https://api.bsale.cl/v1/stocks/receptions.json', {
+    const res = await bsaleFetch('/stocks/receptions.json', {
       method: 'POST',
-      headers: {
-        'access_token': token,
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
+      body: payload,
     });
 
     const responseText = await res.text();
@@ -85,8 +75,9 @@ export async function POST(request: Request) {
       payloadEnviado: payload,
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error en stock-reception:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Error desconocido';
+    return errorResponse(message);
   }
 }
