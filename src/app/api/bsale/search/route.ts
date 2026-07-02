@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getBsaleToken, isBsaleTokenValid, bsaleFetch } from '@/lib/bsale';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -11,10 +12,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ items: [] });
   }
 
-  const token = process.env.BSALE_ACCESS_TOKEN;
+  const token = getBsaleToken();
 
-  // Si el token es el de ejemplo o no está configurado, usamos datos simulados para pruebas
-  if (!token || token === 'ejemplo_temporal') {
+  if (!isBsaleTokenValid(token)) {
     console.log(`Modo simulación Bsale (Token temporal). Buscando: ${query}`);
     const mockVariants = [
       { id: 1, name: `${query} - Producto Premium`, code: `SKU-${query.toUpperCase()}-01`, state: 0 },
@@ -25,22 +25,17 @@ export async function GET(request: Request) {
   }
 
   try {
-    let url = 'https://api.bsale.cl/v1/variants.json';
+    let path = '/variants.json';
     
     if (code) {
-      url += `?code=${encodeURIComponent(code)}`;
+      path += `?code=${encodeURIComponent(code)}`;
     } else if (barcode) {
-      url += `?barcode=${encodeURIComponent(barcode)}`;
+      path += `?barcode=${encodeURIComponent(barcode)}`;
     } else if (name) {
-      url += `?name=${encodeURIComponent(name)}`;
+      path += `?name=${encodeURIComponent(name)}`;
     }
     
-    const response = await fetch(url, {
-      headers: {
-        'access_token': token,
-        'Accept': 'application/json'
-      }
-    });
+    const response = await bsaleFetch(path);
 
     if (!response.ok) {
       throw new Error(`Error en la API de Bsale: ${response.status}`);
@@ -48,17 +43,15 @@ export async function GET(request: Request) {
 
     const data = await response.json();
     
-    // Bsale devuelve un objeto con la propiedad 'items' que es un arreglo de variantes
-    const items = data.items?.map((item: any) => {
+    const items = data.items?.map((item: { id: number; description?: string; code?: string; name?: string; product?: { name?: string; brand?: { name?: string } } }) => {
       const productName = item.product?.name || '';
       const variantDesc = item.description || '';
       const brandName = item.product?.brand?.name || '';
       
-      let parts = [];
+      const parts: string[] = [];
       if (brandName) parts.push(brandName);
       if (productName) parts.push(productName);
       
-      // Si la descripción de la variante no contiene el nombre del producto y es distinta, la agregamos
       if (variantDesc && variantDesc !== productName && !variantDesc.includes(productName)) {
         parts.push(variantDesc);
       }
