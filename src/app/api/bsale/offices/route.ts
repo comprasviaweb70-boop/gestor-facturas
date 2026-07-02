@@ -1,19 +1,19 @@
 import { NextResponse } from 'next/server';
+import { getBsaleToken, isBsaleTokenValid, unauthorizedResponse, bsaleFetch, errorResponse } from '@/lib/bsale';
 
 export async function GET() {
-  const token = process.env.BSALE_ACCESS_TOKEN;
+  const token = getBsaleToken();
 
-  if (!token || token === 'ejemplo_temporal') {
-    return NextResponse.json({ error: 'Token no configurado' }, { status: 401 });
+  if (!isBsaleTokenValid(token)) {
+    return unauthorizedResponse('Token no configurado');
   }
 
   try {
-    const res = await fetch('https://api.bsale.cl/v1/offices.json?limit=50', {
-      headers: { 'access_token': token, 'Accept': 'application/json' },
-    });
+    const res = await bsaleFetch('/offices.json?limit=50');
     const data = await res.json();
     return NextResponse.json(data);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Error desconocido';
+    return errorResponse(message);
   }
 }

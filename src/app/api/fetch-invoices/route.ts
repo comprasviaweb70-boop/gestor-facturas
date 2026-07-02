@@ -1,35 +1,28 @@
 import { NextResponse } from 'next/server';
+import { getBsaleToken, isBsaleTokenValid, unauthorizedResponse, bsaleFetch, errorResponse } from '@/lib/bsale';
 
 export async function GET() {
-  const token = process.env.BSALE_ACCESS_TOKEN;
+  const token = getBsaleToken();
   
-  if (!token || token === 'ejemplo_temporal') {
-    return NextResponse.json({ 
-      error: 'Para conectar con Bsale, debes configurar el token real en Vercel.' 
-    }, { status: 401 });
+  if (!isBsaleTokenValid(token)) {
+    return unauthorizedResponse('Para conectar con Bsale, debes configurar el token real en Vercel.');
   }
 
   const now = new Date();
   const year = now.getFullYear();
-  const currentMonth = now.getMonth() + 1; // getMonth() es 0-indexed
+  const currentMonth = now.getMonth() + 1;
 
   try {
-    const allItems: any[] = [];
+    const allItems: { siiStatus?: unknown[]; id: number; emissionDate: number; number?: string; clientCode?: string; clientActivity?: string; totalAmount?: number; netAmount?: number; ivaAmount?: number; urlXml?: string; urlPdf?: string }[] = [];
     let totalCount = 0;
 
-    // Iterar desde enero hasta el mes actual para capturar todas las pendientes
     for (let month = 1; month <= currentMonth; month++) {
-      const baseUrl = `https://api.bsale.cl/v1/third_party_documents.json?limit=50&year=${year}&month=${month}&codesii=33`;
+      const basePath = `/third_party_documents.json?limit=50&year=${year}&month=${month}&codesii=33`;
       let offset = 0;
 
       while (true) {
-        const url = `${baseUrl}&offset=${offset}`;
-        const res = await fetch(url, {
-          headers: {
-            'access_token': token,
-            'Accept': 'application/json'
-          }
-        });
+        const path = `${basePath}&offset=${offset}`;
+        const res = await bsaleFetch(path);
 
         if (!res.ok) {
           console.warn(`Error Bsale mes ${month}: ${res.status}`);
@@ -44,14 +37,12 @@ export async function GET() {
       }
     }
 
-    // Filtrar: solo documentos SIN estado SII (no procesados)
-    const pendingItems = allItems.filter((doc: any) =>
-      !doc.siiStatus || doc.siiStatus.length === 0
+    const pendingItems = allItems.filter((doc) =>
+      !doc.siiStatus || (doc.siiStatus as unknown[]).length === 0
     );
 
-    // Mapear y ordenar por fecha descendente (más recientes primero)
     const invoices = pendingItems
-      .map((doc: any) => ({
+      .map((doc) => ({
         id: doc.id.toString(),
         fecha: new Date(doc.emissionDate * 1000).toLocaleDateString('es-CL'),
         emissionTimestamp: doc.emissionDate,
@@ -65,7 +56,7 @@ export async function GET() {
         urlPdf: doc.urlPdf || null,
         procesada: false
       }))
-      .sort((a: any, b: any) => b.emissionTimestamp - a.emissionTimestamp);
+      .sort((a, b) => b.emissionTimestamp - a.emissionTimestamp);
 
     return NextResponse.json({
       total: totalCount,
@@ -73,8 +64,9 @@ export async function GET() {
       procesadas: totalCount - pendingItems.length,
       invoices
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(`Error consultando documentos de proveedores:`, error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Error desconocido';
+    return errorResponse(message);
   }
 }
