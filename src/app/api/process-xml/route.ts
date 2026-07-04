@@ -45,7 +45,7 @@ Regla crítica:
 - precioUnitario: Es el precio neto unitario (etiqueta <PrcItem>).
 - precioBrutoUnitario: Es el precio con impuestos (etiqueta <MontoBrutoItem> dividido por cantidad).
 - subtotalNeto: Es el monto total neto del ítem (<MontoItem>).
-- codigo: Es el SKU del proveedor (VlrCodigo).
+- codigo: Es el SKU del proveedor (VlrCodigo). Si no encuentra VlrCodigo, buscar en <CdgItem><Codigo> o <Sku>. Si no hay código identificable, usar 'S/C'.
 - fleteTotal: Si el RUT es 79576940-4 (ZAPATA), utiliza la fórmula: (Bruto - (Neto * (1 + 0.19 + ILA))) / 1.19. Multiplica el resultado por la cantidad.
 
 Responde ÚNICAMENTE con el objeto JSON válido.`;

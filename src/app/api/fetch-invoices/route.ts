@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 
+export const maxDuration = 60;
+
 export async function GET() {
   const token = process.env.BSALE_ACCESS_TOKEN;
   
@@ -10,17 +12,31 @@ export async function GET() {
   }
 
   const now = new Date();
-  const year = now.getFullYear();
+  const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1; // getMonth() es 0-indexed
+
+  // Ventana de consulta: mes actual + 2 meses anteriores (alineado con el plazo
+  // de 45 días en que Bsale da de baja documentos sin estado SII).
+  const monthsToQuery: { year: number; month: number }[] = [];
+  for (let i = 0; i < 3; i++) {
+    let month = currentMonth - i;
+    let year = currentYear;
+    if (month <= 0) {
+      month += 12;
+      year -= 1;
+    }
+    monthsToQuery.push({ year, month });
+  }
 
   try {
     const allItems: any[] = [];
     let totalCount = 0;
+    const warnings: string[] = [];
 
-    // Iterar desde enero hasta el mes actual para capturar todas las pendientes
-    for (let month = 1; month <= currentMonth; month++) {
+    for (const { year, month } of monthsToQuery) {
       const baseUrl = `https://api.bsale.cl/v1/third_party_documents.json?limit=50&year=${year}&month=${month}&codesii=33`;
       let offset = 0;
+      let monthFailed = false;
 
       while (true) {
         const url = `${baseUrl}&offset=${offset}`;
@@ -32,7 +48,10 @@ export async function GET() {
         });
 
         if (!res.ok) {
-          console.warn(`Error Bsale mes ${month}: ${res.status}`);
+          const msg = `Error Bsale mes ${month}/${year}: ${res.status}`;
+          console.warn(msg);
+          warnings.push(msg);
+          monthFailed = true;
           break;
         }
 
@@ -42,6 +61,9 @@ export async function GET() {
         if (!data.next || (data.items && data.items.length < 50)) break;
         offset += 50;
       }
+
+      // Si un mes falló, no intentar seguir paginando ese mes; continuar con el siguiente
+      if (monthFailed) continue;
     }
 
     // Filtrar: solo documentos SIN estado SII (no procesados)
@@ -71,7 +93,8 @@ export async function GET() {
       total: totalCount,
       pendientes: invoices.length,
       procesadas: totalCount - pendingItems.length,
-      invoices
+      invoices,
+      warnings: warnings.length > 0 ? warnings : undefined
     });
   } catch (error: any) {
     console.error(`Error consultando documentos de proveedores:`, error);
