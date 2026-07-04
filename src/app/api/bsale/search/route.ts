@@ -17,9 +17,9 @@ export async function GET(request: Request) {
   if (!token || token === 'ejemplo_temporal') {
     console.log(`Modo simulación Bsale (Token temporal). Buscando: ${query}`);
     const mockVariants = [
-      { id: 1, name: `${query} - Producto Premium`, code: `SKU-${query.toUpperCase()}-01` },
-      { id: 2, name: `${query} - Producto Estándar`, code: `SKU-${query.toUpperCase()}-02` },
-      { id: 3, name: `${query} - Producto Económico`, code: `SKU-${query.toUpperCase()}-03` },
+      { id: 1, name: `${query} - Producto Premium`, code: `SKU-${query.toUpperCase()}-01`, state: 0 },
+      { id: 2, name: `${query} - Producto Estándar`, code: `SKU-${query.toUpperCase()}-02`, state: 0 },
+      { id: 3, name: `${query} - Producto Económico`, code: `SKU-${query.toUpperCase()}-03`, state: 0 },
     ];
     return NextResponse.json({ items: mockVariants });
   }
@@ -68,7 +68,8 @@ export async function GET(request: Request) {
       return {
         id: item.id,
         name: fullName,
-        code: item.code || 'S/SKU'
+        code: item.code || 'S/SKU',
+        state: item.state ?? null
       };
     }) || [];
 

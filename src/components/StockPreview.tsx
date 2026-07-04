@@ -18,7 +18,7 @@ interface PreviewItem {
   quantity: number;
   cost: number; // PCU con flete e impuestos
   total: number;
-  status: 'ok' | 'missing_sku' | 'zero_qty';
+  status: 'ok' | 'missing_sku' | 'zero_qty' | 'inactive_in_bsale';
 }
 
 export default function StockPreview({ extractedData, fantasyName, margin }: StockPreviewProps) {
@@ -30,6 +30,7 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
   const [sending, setSending] = useState(false);
   const [sendResult, setSendResult] = useState<{ success: boolean; message: string; details?: any } | null>(null);
   const [officeId, setOfficeId] = useState<number | null>(null);
+  const [revalidating, setRevalidating] = useState(false);
 
   // Cargar officeId al montar
   useEffect(() => {
@@ -92,7 +93,7 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
         // El PCU debe excluir el flete según la nueva regla de costeo
         const pcu = (subtotalNeto + imptoAdic) / (qty || 1);
 
-        let status: 'ok' | 'missing_sku' | 'zero_qty' = 'ok';
+        let status: 'ok' | 'missing_sku' | 'zero_qty' | 'inactive_in_bsale' = 'ok';
         if (!sku) status = 'missing_sku';
         else if (qty <= 0) status = 'zero_qty';
 
@@ -107,10 +108,38 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
         };
       });
 
-      setPreviewItems(items);
+      // Validar estado activo en Bsale para cada SKU mapeado
+      const skuChecks = items
+        .filter(item => item.internalSku && item.status === 'ok')
+        .map(async (item) => {
+          try {
+            const res = await fetch(`/api/bsale/search?code=${encodeURIComponent(item.internalSku!)}`);
+            const data = await res.json();
+            const variant = data.items?.[0];
+            return { internalSku: item.internalSku, state: variant?.state, name: variant?.name || item.productName };
+          } catch {
+            return { internalSku: item.internalSku, state: null, name: item.productName };
+          }
+        });
+      const skuStates = await Promise.all(skuChecks);
+      const stateMap: { [sku: string]: { state: number | null; name: string } } = {};
+      skuStates.forEach(s => {
+        if (s.internalSku) stateMap[s.internalSku] = { state: s.state, name: s.name };
+      });
 
-      // Construir payload JSON para Bsale (solo items válidos)
-      const validItems = items.filter(i => i.status === 'ok');
+      const validatedItems = items.map(item => {
+        if (item.status !== 'ok') return item;
+        const info = item.internalSku ? stateMap[item.internalSku] : undefined;
+        if (info && info.state !== undefined && info.state !== 0 && info.state !== null) {
+          return { ...item, status: 'inactive_in_bsale' as const, productName: info.name || item.productName };
+        }
+        return item;
+      });
+
+      setPreviewItems(validatedItems);
+
+      // Construir payload JSON para Bsale (solo items realmente válidos)
+      const validItems = validatedItems.filter(i => i.status === 'ok');
       const payload = {
         document: "Factura",
         officeId: officeId || 1,
@@ -140,8 +169,16 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
   const totalOk = previewItems.filter(i => i.status === 'ok').length;
   const totalMissing = previewItems.filter(i => i.status === 'missing_sku').length;
   const totalZero = previewItems.filter(i => i.status === 'zero_qty').length;
+  const totalInactive = previewItems.filter(i => i.status === 'inactive_in_bsale').length;
   const grandTotal = previewItems.reduce((sum, i) => sum + i.total, 0);
-  const allValid = totalMissing === 0 && totalZero === 0;
+  const allValid = totalMissing === 0 && totalZero === 0 && totalInactive === 0;
+
+  const handleRevalidate = async () => {
+    if (revalidating) return;
+    setRevalidating(true);
+    await buildPreview();
+    setRevalidating(false);
+  };
 
   const handleCopyJson = () => {
     if (!jsonPayload) return;
@@ -252,7 +289,7 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
     for (const item of previewItems) {
       const r = ws.getRow(row);
       r.values = [
-        item.status === 'ok' ? '✅ OK' : item.status === 'missing_sku' ? '❌ SIN SKU' : '⚠️ CANT. 0',
+        item.status === 'ok' ? '✅ OK' : item.status === 'missing_sku' ? '❌ SIN SKU' : item.status === 'inactive_in_bsale' ? '⚠️ INACTIVO BSALE' : '⚠️ CANT. 0',
         item.supplierCode,
         item.productName,
         item.internalSku || 'SIN MATCH',
@@ -282,7 +319,7 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
 
     // Summary row
     const summaryRow = ws.getRow(row + 2);
-    summaryRow.getCell(1).value = `Resumen: ${totalOk} OK | ${totalMissing} sin SKU | ${totalZero} cant. 0`;
+    summaryRow.getCell(1).value = `Resumen: ${totalOk} OK | ${totalMissing} sin SKU | ${totalZero} cant. 0 | ${totalInactive} inactivo(s) Bsale`;
     summaryRow.getCell(1).font = { italic: true, color: { argb: 'FF666666' } };
 
     // Auto width
@@ -357,6 +394,11 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
                       <AlertTriangle className="h-3 w-3 mr-1" /> {totalZero} cant. 0
                     </span>
                   )}
+                  {totalInactive > 0 && (
+                    <span className="inline-flex items-center text-xs bg-orange-50 text-orange-700 px-2.5 py-1 rounded-full font-medium">
+                      <AlertTriangle className="h-3 w-3 mr-1" /> {totalInactive} inactivo(s) en Bsale
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -365,10 +407,32 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
                 <div className="mx-4 mt-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
                   <AlertTriangle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
                   <p className="text-sm text-red-700">
-                    <strong>{totalMissing} producto(s)</strong> no tienen SKU de Bsale mapeado. 
-                    Estos ítems <strong>no se incluirán</strong> en el ingreso de stock. 
+                    <strong>{totalMissing} producto(s)</strong> no tienen SKU de Bsale mapeado.
+                    Estos ítems <strong>no se incluirán</strong> en el ingreso de stock.
                     Vuelve a la tabla de validación para parear los productos faltantes.
                   </p>
+                </div>
+              )}
+              {totalInactive > 0 && (
+                <div className="mx-4 mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 text-orange-600 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-orange-800">
+                    <p className="font-bold">
+                      ⚠ No se puede enviar: {totalInactive} producto(s) inactivo(s) en Bsale
+                    </p>
+                    <ul className="mt-1 list-disc list-inside">
+                      {previewItems
+                        .filter(i => i.status === 'inactive_in_bsale')
+                        .map((item, idx) => (
+                          <li key={idx}>
+                            {item.productName} — <span className="font-mono text-xs">{item.internalSku}</span>
+                          </li>
+                        ))}
+                    </ul>
+                    <p className="mt-1">
+                      Reactívalo(s) en Bsale y usa <strong>Revalidar</strong> para reintentar el envío completo.
+                    </p>
+                  </div>
                 </div>
               )}
 
@@ -395,6 +459,8 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
                             ? 'bg-red-50/50 hover:bg-red-50'
                             : item.status === 'zero_qty'
                             ? 'bg-amber-50/50 hover:bg-amber-50'
+                            : item.status === 'inactive_in_bsale'
+                            ? 'bg-orange-50/50 hover:bg-orange-50'
                             : 'bg-white hover:bg-gray-50'
                         }`}
                       >
@@ -402,6 +468,7 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
                           {item.status === 'ok' && <CheckCircle className="h-4 w-4 text-green-500" />}
                           {item.status === 'missing_sku' && <XCircle className="h-4 w-4 text-red-500" />}
                           {item.status === 'zero_qty' && <AlertTriangle className="h-4 w-4 text-amber-500" />}
+                          {item.status === 'inactive_in_bsale' && <AlertTriangle className="h-4 w-4 text-orange-600" />}
                         </td>
                         <td className="px-3 py-2.5 font-mono text-xs text-gray-500">{item.supplierCode}</td>
                         <td className="px-3 py-2.5 text-gray-800 font-medium">{item.productName}</td>
@@ -421,7 +488,9 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
                   <tfoot>
                     <tr className="bg-gray-50 font-bold">
                       <td colSpan={4} className="px-3 py-3 text-right text-gray-600">
-                        Total ({totalOk} productos válidos):
+                        Total ({totalOk} productos válidos
+                        {totalInactive > 0 && <span className="text-orange-600"> — {totalInactive} excluido(s) por inactivo</span>}
+                        ):
                       </td>
                       <td className="px-3 py-3 text-right">
                         {previewItems.filter(i => i.status === 'ok').reduce((s, i) => s + i.quantity, 0)} uds
@@ -452,6 +521,19 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
                     <Copy className="h-4 w-4 mr-2" />
                     {copied ? '¡Copiado!' : 'Copiar JSON'}
                   </button>
+                  <button
+                    onClick={handleRevalidate}
+                    disabled={revalidating || totalInactive === 0}
+                    className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={totalInactive === 0 ? 'No hay productos inactivos para revalidar' : 'Volver a consultar estado en Bsale tras reactivar el producto'}
+                  >
+                    {revalidating ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <AlertTriangle className="h-4 w-4 mr-2" />
+                    )}
+                    {revalidating ? 'Revalidando...' : 'Revalidar'}
+                  </button>
                 </div>
 
                 <button
@@ -465,10 +547,12 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
                       : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   }`}
                   title={
-                    sendResult?.success 
+                    sendResult?.success
                       ? 'Recepción ya enviada exitosamente'
-                      : !allValid 
-                      ? `Faltan ${totalMissing} SKU(s) por mapear` 
+                      : !allValid
+                      ? totalInactive > 0
+                        ? `${totalInactive} producto(s) inactivo(s) en Bsale — reactiva y revalida`
+                        : `Faltan ${totalMissing} SKU(s) por mapear`
                       : 'Enviar recepción de stock a Bsale'
                   }
                 >
