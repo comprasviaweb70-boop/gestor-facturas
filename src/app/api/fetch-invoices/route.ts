@@ -1,14 +1,11 @@
 import { NextResponse } from 'next/server';
+import { getBsaleToken, missingTokenResponse, bsaleFetch } from '@/lib/bsale';
 
 export const maxDuration = 60;
 
 export async function GET() {
-  const token = process.env.BSALE_ACCESS_TOKEN;
-  
-  if (!token || token === 'ejemplo_temporal') {
-    return NextResponse.json({ 
-      error: 'Para conectar con Bsale, debes configurar el token real en Vercel.' 
-    }, { status: 401 });
+  if (!getBsaleToken()) {
+    return missingTokenResponse();
   }
 
   const now = new Date();
@@ -39,13 +36,7 @@ export async function GET() {
       let monthFailed = false;
 
       while (true) {
-        const url = `${baseUrl}&offset=${offset}`;
-        const res = await fetch(url, {
-          headers: {
-            'access_token': token,
-            'Accept': 'application/json'
-          }
-        });
+        const res = await bsaleFetch(`${baseUrl}&offset=${offset}`);
 
         if (!res.ok) {
           const msg = `Error Bsale mes ${month}/${year}: ${res.status}`;

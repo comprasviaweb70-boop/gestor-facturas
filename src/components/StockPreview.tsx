@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { calculatePCU } from '@/lib/costing';
 import { Eye, AlertTriangle, CheckCircle, XCircle, Copy, FileDown, Send, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import ExcelJS from 'exceljs';
 
@@ -91,7 +92,7 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
         const qty = Number(item.cantidad);
         
         // El PCU debe excluir el flete según la nueva regla de costeo
-        const pcu = (subtotalNeto + imptoAdic) / (qty || 1);
+        const pcu = calculatePCU(subtotalNeto, imptoAdic, qty);
 
         let status: 'ok' | 'missing_sku' | 'zero_qty' | 'inactive_in_bsale' = 'ok';
         if (!sku) status = 'missing_sku';

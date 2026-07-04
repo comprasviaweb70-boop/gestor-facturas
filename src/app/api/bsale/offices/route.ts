@@ -1,16 +1,13 @@
 import { NextResponse } from 'next/server';
+import { getBsaleToken, missingTokenResponse, bsaleFetch } from '@/lib/bsale';
 
 export async function GET() {
-  const token = process.env.BSALE_ACCESS_TOKEN;
-
-  if (!token || token === 'ejemplo_temporal') {
-    return NextResponse.json({ error: 'Token no configurado' }, { status: 401 });
+  if (!getBsaleToken()) {
+    return missingTokenResponse();
   }
 
   try {
-    const res = await fetch('https://api.bsale.cl/v1/offices.json?limit=50', {
-      headers: { 'access_token': token, 'Accept': 'application/json' },
-    });
+    const res = await bsaleFetch('/offices.json?limit=50');
     const data = await res.json();
     return NextResponse.json(data);
   } catch (error: any) {

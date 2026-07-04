@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { hasValidCode } from '@/lib/skuUtils';
+import { calculatePCU } from '@/lib/costing';
 import { Link as LinkIcon, Loader2, Plus, Trash2, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 
 interface ValidationTableProps {
@@ -78,7 +80,9 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
   }, [propItems]);
 
   const searchEquivalences = async (itemsList: any[]) => {
-    const codigos = itemsList.map(item => (item.codigo || item.supplier_code || '').trim()).filter(c => c && c !== 'S/C');
+    const codigos = itemsList
+      .map(item => (item.codigo || item.supplier_code || '').trim())
+      .filter(hasValidCode);
     if (codigos.length === 0) return;
 
     try {
@@ -443,7 +447,7 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
                 const flete = Number(item.fleteTotal) || 0;
                 const cantidad = Number(item.cantidad) || 1;
                 // El PCU debe ser el costo neto real + impuestos adicionales, excluyendo el flete para el cálculo del margen
-                const pcu = (subtotalNeto + imptoAdic) / cantidad;
+                const pcu = calculatePCU(subtotalNeto, imptoAdic, cantidad);
                 
                 return (
                   <tr key={id} className="bg-white border-b hover:bg-gray-50">

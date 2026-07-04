@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getBsaleToken, bsaleFetch } from '@/lib/bsale';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -11,10 +12,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ items: [] });
   }
 
-  const token = process.env.BSALE_ACCESS_TOKEN;
-
   // Si el token es el de ejemplo o no está configurado, usamos datos simulados para pruebas
-  if (!token || token === 'ejemplo_temporal') {
+  if (!getBsaleToken()) {
     console.log(`Modo simulación Bsale (Token temporal). Buscando: ${query}`);
     const mockVariants = [
       { id: 1, name: `${query} - Producto Premium`, code: `SKU-${query.toUpperCase()}-01`, state: 0 },
@@ -25,22 +24,13 @@ export async function GET(request: Request) {
   }
 
   try {
-    let url = 'https://api.bsale.cl/v1/variants.json';
-    
-    if (code) {
-      url += `?code=${encodeURIComponent(code)}`;
-    } else if (barcode) {
-      url += `?barcode=${encodeURIComponent(barcode)}`;
-    } else if (name) {
-      url += `?name=${encodeURIComponent(name)}`;
-    }
-    
-    const response = await fetch(url, {
-      headers: {
-        'access_token': token,
-        'Accept': 'application/json'
-      }
-    });
+    const queryParams = code
+      ? `?code=${encodeURIComponent(code)}`
+      : barcode
+        ? `?barcode=${encodeURIComponent(barcode)}`
+        : `?name=${encodeURIComponent(name || '')}`;
+
+    const response = await bsaleFetch(`/variants.json${queryParams}`);
 
     if (!response.ok) {
       throw new Error(`Error en la API de Bsale: ${response.status}`);

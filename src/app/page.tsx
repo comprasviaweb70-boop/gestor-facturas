@@ -8,6 +8,7 @@ import AutoReceptionModule from '@/components/AutoReceptionModule';
 import EquivalenceManager from '@/components/EquivalenceManager';
 import StockPreview from '@/components/StockPreview';
 import { supabase } from '@/lib/supabase';
+import { calculatePCU, calculatePVU } from '@/lib/costing';
 import ExcelJS from 'exceljs';
 import { FileDown, Loader2 } from 'lucide-react';
 
@@ -159,11 +160,12 @@ export default function Home() {
           const imptoAdic = Number(item.impuestosAdicionales) || 0;
           const flete = Number(item.fleteTotal) || 0;
           const cantidad = Number(item.cantidad) || 1;
-          
-          // PCU = (Subtotal Neto + Impto. Adic. + Flete) / Cantidad
-          const pcu = (subtotalNeto + imptoAdic + flete) / cantidad;
+
+          // PCU excluye flete según la regla de costeo del proyecto.
+          // Flete se mantiene en la columna "Flete" y en el "Total Línea".
+          const pcu = calculatePCU(subtotalNeto, imptoAdic, cantidad);
           const totalItem = subtotalNeto + imptoAdic + flete;
-          const pvu = pcu * (1 + margin / 100) * 1.19;
+          const pvu = calculatePVU(pcu, margin);
           
           grandTotal += totalItem;
           totalTaxes += imptoAdic;

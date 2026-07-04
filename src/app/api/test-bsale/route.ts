@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
+import { getBsaleToken, bsaleFetch } from '@/lib/bsale';
 
 export async function GET(request: Request) {
-  const token = process.env.BSALE_ACCESS_TOKEN;
+  const token = getBsaleToken();
   const { searchParams } = new URL(request.url);
   const docId = searchParams.get('docId');
 
@@ -25,9 +26,7 @@ export async function GET(request: Request) {
     let docClientCode = '';
     
     try {
-      const docRes = await fetch(`https://api.bsale.cl/v1/third_party_documents/${docId}.json`, {
-        headers: { 'access_token': token, 'Accept': 'application/json' },
-      });
+      const docRes = await bsaleFetch(`/third_party_documents/${docId}.json`);
       if (docRes.ok) {
         const docData = await docRes.json();
         docNumber = docData.number || docId;
@@ -55,9 +54,7 @@ export async function GET(request: Request) {
     const results = [];
     for (const url of urls) {
       try {
-        const res = await fetch(url, {
-          headers: { 'access_token': token, 'Accept': 'application/json' },
-        });
+        const res = await bsaleFetch(url);
         const body = await res.text();
         let parsed = null;
         try { parsed = JSON.parse(body); } catch {}
@@ -80,8 +77,8 @@ export async function GET(request: Request) {
   }
 
   // Obtener TODOS los documentos de mayo 2026 tipo 33 con paginación
-  const baseUrl = 'https://api.bsale.cl/v1/third_party_documents.json?limit=50&year=2026&month=5&codesii=33';
-  
+  const baseUrl = '/third_party_documents.json?limit=50&year=2026&month=5&codesii=33';
+
   try {
     const allItems: any[] = [];
     let offset = 0;
@@ -89,10 +86,7 @@ export async function GET(request: Request) {
 
     // Paginar para traer todos
     while (true) {
-      const url = `${baseUrl}&offset=${offset}`;
-      const res = await fetch(url, {
-        headers: { 'access_token': token, 'Accept': 'application/json' },
-      });
+      const res = await bsaleFetch(`${baseUrl}&offset=${offset}`);
       const data = await res.json();
       totalCount = data.count || 0;
       if (data.items) allItems.push(...data.items);

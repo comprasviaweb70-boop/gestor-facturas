@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { hasValidCode } from '@/lib/skuUtils';
 
 // Permitir más tiempo para procesamiento de imágenes/PDF
 export const maxDuration = 60;
@@ -610,7 +611,7 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
       // Nota: impuestosAdicionales se mantiene como TOTAL por línea (no se normaliza a unitario)
       // El PCU se calcula en el frontend: (subtotalNeto + impuestosAdicionales + fleteTotal) / cantidad
 
-      const codigos = items.map(item => item.codigo).filter(c => c && c !== 'S/C');
+      const codigos = items.map(item => item.codigo).filter(hasValidCode);
       
       if (codigos.length > 0) {
         // 1. Buscar todas las equivalencias de golpe
@@ -661,7 +662,7 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
         const itemsToQueue = [];
         
         for (const item of items) {
-          if (!item.codigo || item.codigo === 'S/C') continue;
+          if (!hasValidCode(item.codigo)) continue;
           
           const hasEq = eqMap.has(item.codigo + '_' + rutEmisor) || eqMap.has(item.codigo + '_null');
           

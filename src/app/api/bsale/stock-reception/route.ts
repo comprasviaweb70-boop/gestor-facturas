@@ -1,12 +1,9 @@
 import { NextResponse } from 'next/server';
+import { getBsaleToken, missingTokenResponse, bsaleFetch } from '@/lib/bsale';
 
 export async function POST(request: Request) {
-  const token = process.env.BSALE_ACCESS_TOKEN;
-
-  if (!token || token === 'ejemplo_temporal') {
-    return NextResponse.json({
-      error: 'Token de Bsale no configurado. Configura BSALE_ACCESS_TOKEN en Vercel.'
-    }, { status: 401 });
+  if (!getBsaleToken()) {
+    return missingTokenResponse();
   }
 
   try {
@@ -48,13 +45,9 @@ export async function POST(request: Request) {
     console.log('Payload:', JSON.stringify(payload, null, 2));
 
     // Enviar a Bsale
-    const res = await fetch('https://api.bsale.cl/v1/stocks/receptions.json', {
+    const res = await bsaleFetch('/stocks/receptions.json', {
       method: 'POST',
-      headers: {
-        'access_token': token,
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
 
