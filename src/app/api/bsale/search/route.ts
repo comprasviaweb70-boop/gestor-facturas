@@ -43,7 +43,7 @@ export async function GET(request: Request) {
 
     const data = await response.json();
     
-    const items = data.items?.map((item: { id: number; description?: string; code?: string; name?: string; product?: { name?: string; brand?: { name?: string } } }) => {
+    const items = data.items?.map((item: { id: number; description?: string; code?: string; name?: string; state?: number | null; product?: { name?: string; brand?: { name?: string } } }) => {
       const productName = item.product?.name || '';
       const variantDesc = item.description || '';
       const brandName = item.product?.brand?.name || '';
