@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Link as LinkIcon, Loader2, Plus, Trash2, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { fetchEquivalenceMap } from '@/lib/equivalences';
 
 interface ValidationTableProps {
   items?: any[];
@@ -82,33 +83,21 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
     if (codigos.length === 0) return;
 
     try {
-      const { data, error } = await supabase
-        .from('sku_equivalences')
-        .select('supplier_code, internal_sku, rut_provider')
-        .in('supplier_code', codigos);
+      const equivalences = await fetchEquivalenceMap(codigos, rutEmisor);
 
-      if (error) throw error;
-
-      if (data) {
-        const updatedItems = itemsList.map(item => {
-          const itemCodigo = (item.codigo || item.supplier_code || '').trim();
-          const itemRut = item.rut_provider || rutEmisor;
-          
-          const match = data.find(eq => 
-            (eq.supplier_code || '').trim() === itemCodigo && 
-            (!eq.rut_provider || eq.rut_provider === itemRut)
-          );
-          
-          if (match) {
-            return { ...item, internal_sku: match.internal_sku };
-          }
-          return item;
-        });
+      const updatedItems = itemsList.map(item => {
+        const itemCodigo = (item.codigo || item.supplier_code || '').trim();
+        const match = equivalences[itemCodigo];
         
-        setLocalItems(updatedItems);
-        if (onItemsChange) {
-          onItemsChange(updatedItems);
+        if (match) {
+          return { ...item, internal_sku: match };
         }
+        return item;
+      });
+      
+      setLocalItems(updatedItems);
+      if (onItemsChange) {
+        onItemsChange(updatedItems);
       }
     } catch (error) {
       console.error('Error searching equivalences in table:', error);

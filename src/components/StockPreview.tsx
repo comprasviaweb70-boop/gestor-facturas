@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
 import { Eye, AlertTriangle, CheckCircle, XCircle, Copy, FileDown, Send, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import ExcelJS from 'exceljs';
+import { fetchEquivalenceMap } from '@/lib/equivalences';
+import { applyHeaderStyle, autoFitColumns, downloadWorkbook } from '@/lib/excel';
 
 interface StockPreviewProps {
   extractedData: any;
@@ -62,24 +63,7 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
     try {
       // Obtener equivalencias
       const supplierCodes = extractedData.items.map((item: any) => item.codigo?.trim()).filter(Boolean);
-      let equivalences: { [key: string]: string } = {};
-
-      if (supplierCodes.length > 0) {
-        const { data: eqData } = await supabase
-          .from('sku_equivalences')
-          .select('supplier_code, internal_sku, rut_provider')
-          .in('supplier_code', supplierCodes);
-
-        if (eqData) {
-          eqData.forEach((eq: any) => {
-            if (eq.rut_provider === extractedData.rutEmisor) {
-              equivalences[eq.supplier_code] = eq.internal_sku;
-            } else if (!eq.rut_provider && !equivalences[eq.supplier_code]) {
-              equivalences[eq.supplier_code] = eq.internal_sku;
-            }
-          });
-        }
-      }
+      const equivalences = await fetchEquivalenceMap(supplierCodes, extractedData.rutEmisor);
 
       // Construir items de preview
       const items: PreviewItem[] = extractedData.items.map((item: any) => {
@@ -276,14 +260,9 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
     ws.getCell('D2').value = `RUT: ${extractedData?.rutEmisor || ''}`;
     ws.getCell('D3').value = `Fecha: ${new Date().toLocaleDateString('es-CL')}`;
 
-    // Table headers
     const headerRow = ws.getRow(5);
     headerRow.values = ['Estado', 'Cód. Proveedor', 'Producto', 'SKU Bsale', 'Cantidad', 'Costo Unit.', 'Total Línea'];
-    headerRow.eachCell(cell => {
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF00427E' } };
-      cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
-      cell.alignment = { horizontal: 'center' };
-    });
+    applyHeaderStyle(headerRow);
 
     let row = 6;
     for (const item of previewItems) {
@@ -322,25 +301,11 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
     summaryRow.getCell(1).value = `Resumen: ${totalOk} OK | ${totalMissing} sin SKU | ${totalZero} cant. 0 | ${totalInactive} inactivo(s) Bsale`;
     summaryRow.getCell(1).font = { italic: true, color: { argb: 'FF666666' } };
 
-    // Auto width
-    ws.columns.forEach((col: any) => {
-      let maxLen = 0;
-      col.eachCell({ includeEmpty: true }, (cell: any) => {
-        const len = cell.value ? String(cell.value).length : 0;
-        if (len > maxLen) maxLen = len;
-      });
-      col.width = Math.max(12, maxLen + 2);
-    });
+    autoFitColumns(ws);
 
     const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
     const safeName = (fantasyName || 'Preview').replace(/[\\/:*?"<>|]/g, '');
-    a.download = `PREVIEW_${safeName}_${extractedData?.folio || 'SF'}.xlsx`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+    downloadWorkbook(buffer, `PREVIEW_${safeName}_${extractedData?.folio || 'SF'}.xlsx`);
   };
 
   if (!extractedData?.items) return null;

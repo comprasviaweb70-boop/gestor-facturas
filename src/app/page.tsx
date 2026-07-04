@@ -10,6 +10,8 @@ import StockPreview from '@/components/StockPreview';
 import { supabase } from '@/lib/supabase';
 import ExcelJS from 'exceljs';
 import { FileDown, Loader2 } from 'lucide-react';
+import { fetchEquivalenceMap } from '@/lib/equivalences';
+import { applyHeaderStyle, autoFitColumns, downloadWorkbook } from '@/lib/excel';
 
 export default function Home() {
   const [extractedData, setExtractedData] = useState<any>(null);
@@ -104,45 +106,10 @@ export default function Home() {
       const headerRow = worksheet.getRow(4);
       headerRow.values = headers;
 
-      // Estilos Fila 4
-      headerRow.eachCell((cell) => {
-        cell.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: 'FF00427E' } // Azul Rey (#00427E)
-        };
-        cell.font = {
-          color: { argb: 'FFFFFFFF' }, // Blanco
-          bold: true
-        };
-        cell.alignment = { vertical: 'middle', horizontal: 'center' };
-      });
+      applyHeaderStyle(headerRow);
 
-      // Obtener códigos de proveedor para buscar equivalencias
       const supplierCodes = extractedData.items?.map((item: any) => item.codigo).filter(Boolean) || [];
-      
-      // Consultar equivalencias en Supabase
-      let equivalences: { [key: string]: string } = {};
-      
-      if (supplierCodes.length > 0) {
-        const { data: eqData, error } = await supabase
-          .from('sku_equivalences')
-          .select('supplier_code, internal_sku, rut_provider')
-          .in('supplier_code', supplierCodes);
-          
-        if (!error && eqData) {
-          eqData.forEach((eq: any) => {
-            // Priorizar coincidencia exacta con el RUT del proveedor
-            if (eq.rut_provider === extractedData.rutEmisor) {
-              equivalences[eq.supplier_code] = eq.internal_sku;
-            } 
-            // Fallback: Si no tiene RUT (legado), lo usamos si aún no hay coincidencia con RUT
-            else if (!eq.rut_provider && !equivalences[eq.supplier_code]) {
-              equivalences[eq.supplier_code] = eq.internal_sku;
-            }
-          });
-        }
-      }
+      const equivalences = await fetchEquivalenceMap(supplierCodes, extractedData.rutEmisor);
 
       // Datos
       let currentRow = 5;
@@ -224,31 +191,12 @@ export default function Home() {
         fgColor: { argb: 'FFE8F0FE' }
       };
 
-      // Auto-ajustar columnas
-      worksheet.columns.forEach((column: any) => {
-        let maxLength = 0;
-        column.eachCell({ includeEmpty: true }, (cell: any) => {
-          const columnLength = cell.value ? cell.value.toString().length : 0;
-          if (columnLength > maxLength) {
-            maxLength = columnLength;
-          }
-        });
-        column.width = maxLength < 12 ? 12 : maxLength + 2;
-      });
+      autoFitColumns(worksheet);
 
-      // Descargar archivo con nombre de fantasía
       const buffer = await workbook.xlsx.writeBuffer();
-      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      
       const sanitizedName = displayName.replace(/[\\/:*?"<>|]/g, '').trim();
       const folio = extractedData.folio || 'Sin_Folio';
-      a.download = `${sanitizedName}_${folio}.xlsx`;
-      
-      a.click();
-      window.URL.revokeObjectURL(url);
+      downloadWorkbook(buffer, `${sanitizedName}_${folio}.xlsx`);
     } catch (error) {
       console.error('Error generating Excel:', error);
       alert('Error al generar el archivo Excel.');

@@ -1,6 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { parseSpanishNumber, normalizeRut } from '@/lib/format';
+import { fetchTaxRates, detectTaxByProductName, calcularFleteOcultoBruto } from '@/lib/tax';
 
 // Permitir más tiempo para procesamiento de imágenes/PDF
 export const maxDuration = 60;
@@ -248,16 +250,8 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
     if (!razonSocial && knownName) razonSocial = knownName;
     if (knownName && !data.razonSocial) data.razonSocial = knownName;
     
-    // Normalizar RUT (quitar puntos, guiones y espacios) para comparaciones consistentes (ej: 12345678K)
-    const normalizedRut = rutEmisor?.replace(/[^0-9Kk]/g, '').toUpperCase();
+    const normalizedRut = normalizeRut(rutEmisor);
     
-    // Función reutilizable: Cálculo de Flete Oculto en Precio Bruto
-    const calcularFleteOcultoBruto = (pBrutoUni: number, pNetoUni: number, imptoAdicRate: number) => {
-      if (!pBrutoUni || pBrutoUni <= 0) return 0;
-      // Fórmula corregida: [[Bruto - (Neto * (1 + 0.19 + ILA))] / 1.19]
-      const fleteUni = (pBrutoUni - (pNetoUni * (1 + 0.19 + imptoAdicRate))) / 1.19;
-      return Math.max(0, fleteUni); 
-    };
     
     if (items && Array.isArray(items)) {
       // Regla General: Detectar packs o displays y calcular unidades reales
@@ -267,23 +261,6 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
           item.cantidad = parseFloat(item.cantidad.replace(/,/g, '.'));
         }
         item.cantidad = Number(item.cantidad) || 0;
-
-        const parseSpanishNumber = (val: any) => {
-          if (typeof val === 'string') {
-            let str = val.trim();
-            if (str.includes('.') && str.includes(',')) {
-              str = str.replace(/\./g, '').replace(/,/g, '.');
-            } else if (str.includes(',')) {
-              str = str.replace(/,/g, '.');
-            }
-            const num = parseFloat(str);
-            return isNaN(num) ? 0 : num;
-          }
-          if (typeof val === 'number') {
-            return isNaN(val) ? 0 : val;
-          }
-          return 0;
-        };
 
         item.precioUnitario = parseSpanishNumber(item.precioUnitario);
         item.precioBrutoUnitario = parseSpanishNumber(item.precioBrutoUnitario);
@@ -367,26 +344,15 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
         item.fleteTotal = item.fleteTotal || 0;
       });
 
-      // Auto-detectar impuestos adicionales por nombre si vienen en 0
       try {
-        const { data: taxRates, error: taxError } = await supabase
-          .from('tax_rates')
-          .select('product_type, tax_percentage');
+        const taxRates = await fetchTaxRates();
 
-        if (!taxError && taxRates) {
+        if (taxRates.length > 0) {
           // Regla específica para HIPERKOR (RUT: 78753810K) - Valores vienen en Bruto
           if (normalizedRut?.startsWith('78753810') || (data.razonSocial && data.razonSocial.toUpperCase().includes('HIPER'))) {
             items.forEach((item: any) => {
               const nombreUpper = (item.nombre || '').toUpperCase();
-              let taxPercentage = 0;
-
-              for (const rate of taxRates) {
-                const keyword = (rate.product_type || '').trim().toUpperCase();
-                if (keyword && nombreUpper.includes(keyword)) {
-                  taxPercentage = rate.tax_percentage / 100;
-                  break;
-                }
-              }
+              let taxPercentage = detectTaxByProductName(item.nombre || '', taxRates);
 
               // Fallback específico para bebidas/cervezas en Hiperkor si no se detectó
               if (taxPercentage === 0 && (nombreUpper.includes('CERVEZA') || nombreUpper.includes('BEBIDA') || nombreUpper.includes('STELLA'))) {
@@ -412,43 +378,28 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
               console.log(`HIPERKOR: ${item.nombre} -> Bruto: ${grossValue}, Neto: ${netValue}, AddTax: ${item.impuestosAdicionales}`);
             });
           } else {
-            // Caso General: Auto-detectar impuestos adicionales por nombre si vienen en 0
             items.forEach((item: any) => {
               if (!item.impuestosAdicionales || item.impuestosAdicionales === 0) {
                 const nombreUpper = (item.nombre || '').toUpperCase();
-                let taxPercentage = 0;
                 
-                // Regla especial: Bebidas energéticas no identificadas por proveedores (18%)
                 if (nombreUpper.includes('SCOREGORILLA') || nombreUpper.includes('RB ACAI') || nombreUpper.includes('REDBULRED')) {
                   item.impuestosAdicionales = Math.round((item.subtotalNeto || 0) * 0.18);
                   console.log(`Aplicado impuesto especial Bebida Energética (18%) a ${item.nombre}`);
                 } else {
-                  for (const rate of taxRates) {
-                    const keyword = (rate.product_type || '').trim().toUpperCase();
-                    if (keyword && nombreUpper.includes(keyword)) {
-                      taxPercentage = rate.tax_percentage / 100;
-                      item.impuestosAdicionales = Math.round((item.subtotalNeto || 0) * taxPercentage);
-                      console.log(`Aplicado impuesto ${rate.product_type} (${rate.tax_percentage}%) a ${item.nombre}: ${item.impuestosAdicionales}`);
-                      break; 
-                    }
+                  const taxPercentage = detectTaxByProductName(item.nombre || '', taxRates);
+                  if (taxPercentage > 0) {
+                    item.impuestosAdicionales = Math.round((item.subtotalNeto || 0) * taxPercentage);
+                    console.log(`Aplicado impuesto (${taxPercentage * 100}%) a ${item.nombre}: ${item.impuestosAdicionales}`);
                   }
                 }
               }
 
               // Regla específica para JOSE ZAPATA E HIJOS S.A. (RUT: 79576940-4)
               if (normalizedRut?.startsWith('79576940') || (data.razonSocial && data.razonSocial.toUpperCase().includes('ZAPATA'))) {
-                // Para Zapata necesitamos saber la tasa de impuesto adicional para el cálculo del flete
                 let currentTaxRate = Number(item.tasaImpuestoAdicional) || 0;
-                const nombreUpper = (item.nombre || '').toUpperCase();
                 
                 if (currentTaxRate === 0) {
-                  for (const rate of taxRates) {
-                    const keyword = (rate.product_type || '').trim().toUpperCase();
-                    if (keyword && nombreUpper.includes(keyword)) {
-                      currentTaxRate = rate.tax_percentage / 100;
-                      break;
-                    }
-                  }
+                  currentTaxRate = detectTaxByProductName(item.nombre || '', taxRates);
                 }
 
                 if (item.precioBrutoUnitario && item.precioBrutoUnitario > 0) {
@@ -577,27 +528,15 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
 
         // 3. Recalcular impuestos adicionales sobre el subtotalNeto corregido
         try {
-          const { data: vctTaxRates } = await supabase
-            .from('tax_rates')
-            .select('product_type, tax_percentage');
+          const vctTaxRates = await fetchTaxRates();
 
-          if (vctTaxRates) {
+          if (vctTaxRates.length > 0) {
             items.forEach((item: any) => {
-              const nombreUpper = (item.nombre || '').toUpperCase();
-              let taxApplied = false;
-
-              for (const rate of vctTaxRates) {
-                const keyword = (rate.product_type || '').trim().toUpperCase();
-                if (keyword && nombreUpper.includes(keyword)) {
-                  const porcentaje = rate.tax_percentage / 100;
-                  item.impuestosAdicionales = Math.round((item.subtotalNeto || 0) * porcentaje);
-                  console.log(`VCT: Impuesto ${rate.product_type} (${rate.tax_percentage}%) aplicado a ${item.nombre}: ${item.impuestosAdicionales}`);
-                  taxApplied = true;
-                  break;
-                }
-              }
-
-              if (!taxApplied) {
+              const taxPercentage = detectTaxByProductName(item.nombre || '', vctTaxRates);
+              if (taxPercentage > 0) {
+                item.impuestosAdicionales = Math.round((item.subtotalNeto || 0) * taxPercentage);
+                console.log(`VCT: Impuesto (${taxPercentage * 100}%) aplicado a ${item.nombre}: ${item.impuestosAdicionales}`);
+              } else {
                 item.impuestosAdicionales = 0;
               }
             });
@@ -610,10 +549,9 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
       // Nota: impuestosAdicionales se mantiene como TOTAL por línea (no se normaliza a unitario)
       // El PCU se calcula en el frontend: (subtotalNeto + impuestosAdicionales + fleteTotal) / cantidad
 
-      const codigos = items.map(item => item.codigo).filter(c => c && c !== 'S/C');
+      const codigos = items.map((item: { codigo?: string }) => item.codigo).filter((c): c is string => !!c && c !== 'S/C');
       
       if (codigos.length > 0) {
-        // 1. Buscar todas las equivalencias de golpe
         const { data: equivalences, error: eqError } = await supabase
           .from('sku_equivalences')
           .select('*')
@@ -623,7 +561,6 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
           console.error('Error fetching equivalences:', eqError);
         }
 
-        // Crear mapa para búsqueda rápida
         const eqMap = new Map();
         equivalences?.forEach((eq: any) => {
           eqMap.set(eq.supplier_code + '_' + eq.rut_provider, eq);
