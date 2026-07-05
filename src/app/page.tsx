@@ -316,7 +316,7 @@ export default function Home() {
                   type="text"
                   value={fantasyName}
                   onChange={(e) => setFantasyName(e.target.value)}
-                  className="border rounded-md px-3 py-1.5 text-sm focus:ring-1 focus:ring-primary w-full sm:w-64"
+                  className="border rounded-md px-3 py-1.5 text-sm text-gray-900 font-medium focus:ring-1 focus:ring-primary w-full sm:w-64"
                   placeholder="Ej: MAD CHARLIES"
                 />
                 <button
