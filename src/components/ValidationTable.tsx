@@ -98,10 +98,12 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
           const itemCodigo = (item.codigo || item.supplier_code || '').trim();
           const itemRut = item.rut_provider || rutEmisor;
           
-          const match = data.find(eq => 
-            (eq.supplier_code || '').trim() === itemCodigo && 
-            (!eq.rut_provider || eq.rut_provider === itemRut)
-          );
+          const match = data.find(eq => {
+            const eqRut = (eq.rut_provider || '').replace(/[^0-9Kk]/g, '').toUpperCase();
+            const itemRutNorm = (itemRut || '').replace(/[^0-9Kk]/g, '').toUpperCase();
+            return (eq.supplier_code || '').trim() === itemCodigo && 
+              (!eq.rut_provider || eqRut === itemRutNorm);
+          });
           
           if (match) {
             return { ...item, internal_sku: match.internal_sku };

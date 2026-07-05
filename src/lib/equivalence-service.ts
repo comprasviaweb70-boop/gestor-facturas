@@ -34,14 +34,17 @@ export async function processEquivalences(
   }
 
   equivalences?.forEach((eq: any) => {
-    eqMap.set(eq.supplier_code + '_' + eq.rut_provider, eq);
+    const eqRut = (eq.rut_provider || '').replace(/[^0-9Kk]/g, '').toUpperCase();
+    eqMap.set(eq.supplier_code + '_' + eqRut, eq);
     if (!eq.rut_provider) {
       eqMap.set(eq.supplier_code + '_null', eq);
     }
   });
 
+  const normalizedRut = rutEmisor.replace(/[^0-9Kk]/g, '').toUpperCase();
+
   const legacyItems = items.filter((item: any) => {
-    return !eqMap.has(item.codigo + '_' + rutEmisor) && eqMap.has(item.codigo + '_null');
+    return !eqMap.has(item.codigo + '_' + normalizedRut) && eqMap.has(item.codigo + '_null');
   });
 
   if (legacyItems.length > 0) {
@@ -66,7 +69,7 @@ export async function processEquivalences(
   for (const item of items) {
     if (!hasValidCode(item.codigo)) continue;
 
-    const hasEq = eqMap.has(item.codigo + '_' + rutEmisor) || eqMap.has(item.codigo + '_null');
+    const hasEq = eqMap.has(item.codigo + '_' + normalizedRut) || eqMap.has(item.codigo + '_null');
 
     if (!hasEq) {
       itemsToQueue.push({

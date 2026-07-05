@@ -71,9 +71,10 @@ export async function POST(request: Request) {
     }
 
     // 6. Respuesta compatible con frontend existente
+    // Devolver rutEmisor sin normalizar para compatibilidad con equivalencias en Supabase
     return NextResponse.json({
       ...data,
-      rutEmisor: invoiceData.rutEmisor || rutEmisor,
+      rutEmisor: data.rutEmisor || knownRut || '',
       razonSocial: invoiceData.razonSocial,
       folio: invoiceData.folio,
       items: invoiceData.items,

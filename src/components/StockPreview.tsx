@@ -79,8 +79,10 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
           .in('supplier_code', supplierCodes);
 
         if (eqData) {
+          const normalizedExtractedRut = (extractedData.rutEmisor || '').replace(/[^0-9Kk]/g, '').toUpperCase();
           eqData.forEach((eq: any) => {
-            if (eq.rut_provider === extractedData.rutEmisor) {
+            const normalizedEqRut = (eq.rut_provider || '').replace(/[^0-9Kk]/g, '').toUpperCase();
+            if (normalizedEqRut === normalizedExtractedRut) {
               equivalences[eq.supplier_code] = eq.internal_sku;
             } else if (!eq.rut_provider && !equivalences[eq.supplier_code]) {
               equivalences[eq.supplier_code] = eq.internal_sku;
