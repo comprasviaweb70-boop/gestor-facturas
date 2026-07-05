@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS proveedores (
     id BIGSERIAL PRIMARY KEY,
     rut TEXT UNIQUE NOT NULL,
     nombre TEXT NOT NULL,
+    extraction_preference TEXT DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Loader2, Search, Zap, EyeOff, RotateCcw } from 'lucide-react';
+import { Loader2, Search, Zap, EyeOff, RotateCcw, FileText, Eye } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 interface AutoReceptionModuleProps {
@@ -15,11 +15,52 @@ export default function AutoReceptionModule({ onDataExtracted }: AutoReceptionMo
   const [ignoringId, setIgnoringId] = useState<string | null>(null);
   const [ignoredIds, setIgnoredIds] = useState<Set<string>>(new Set());
   const [stats, setStats] = useState({ total: 0, pendientes: 0, procesadas: 0 });
+  const [preferences, setPreferences] = useState<Record<string, 'xml' | 'vision'>>({});
+  const [pendingPrefRut, setPendingPrefRut] = useState<string | null>(null);
 
-  // Cargar IDs ignorados desde Supabase al montar
+  // Cargar IDs ignorados y preferencias desde Supabase al montar
   useEffect(() => {
     loadIgnoredIds();
+    loadPreferences();
   }, []);
+
+  const loadPreferences = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('proveedores')
+        .select('rut, extraction_preference')
+        .not('extraction_preference', 'is', null);
+      if (!error && data) {
+        const prefMap: Record<string, 'xml' | 'vision'> = {};
+        data.forEach((p: any) => {
+          if (p.extraction_preference === 'xml' || p.extraction_preference === 'vision') {
+            prefMap[p.rut] = p.extraction_preference;
+          }
+        });
+        setPreferences(prefMap);
+      }
+    } catch (e) {
+      console.log('No se pudieron cargar preferencias:', e);
+    }
+  };
+
+  const savePreference = async (rut: string, preference: 'xml' | 'vision') => {
+    try {
+      const { error } = await supabase
+        .from('proveedores')
+        .upsert({ rut, extraction_preference: preference }, { onConflict: 'rut' });
+      if (error) {
+        // Intentar update si el RUT ya existe sin preferencia
+        await supabase
+          .from('proveedores')
+          .update({ extraction_preference: preference })
+          .eq('rut', rut);
+      }
+      setPreferences(prev => ({ ...prev, [rut]: preference }));
+    } catch (e) {
+      console.error('Error guardando preferencia:', e);
+    }
+  };
 
   const loadIgnoredIds = async () => {
     try {
@@ -94,50 +135,86 @@ export default function AutoReceptionModule({ onDataExtracted }: AutoReceptionMo
     }
   };
 
-  const handleProcess = async (inv: any) => {
+  const handleProcess = async (inv: any, forceMode?: 'xml' | 'vision') => {
+    const rut = inv.rutProveedor || '';
+    const mode = forceMode || preferences[rut] || 'xml';
     setProcessingId(inv.id);
     try {
-      let xmlContent = '';
+      if (mode === 'vision') {
+        // Modo Visión: descargar PDF desde Bsale y enviar como base64
+        if (!inv.urlPdf) {
+          throw new Error('Esta factura no tiene PDF disponible en Bsale para procesar con visión.');
+        }
 
-      if (inv.urlXml) {
-        // Usar la URL del XML directa desde Bsale
-        const resXml = await fetch(`/api/fetch-xml?id=${encodeURIComponent(inv.urlXml)}`);
-        if (!resXml.ok) {
-          const errData = await resXml.json().catch(() => ({}));
-          throw new Error(errData.error || `Error al obtener XML (${resXml.status})`);
+        const resPdf = await fetch(`/api/fetch-xml?id=${encodeURIComponent(inv.urlPdf)}`);
+        if (!resPdf.ok) {
+          throw new Error('Error al descargar el PDF desde Bsale.');
         }
-        xmlContent = await resXml.text();
+
+        const pdfBlob = await resPdf.blob();
+        const reader = new FileReader();
+        const fileBase64 = await new Promise<string>((resolve, reject) => {
+          reader.onload = () => {
+            const result = reader.result as string;
+            resolve(result.split(',')[1]);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(pdfBlob);
+        });
+
+        const resProcess = await fetch('/api/process-xml', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileBase64,
+            fileType: 'application/pdf',
+            knownRut: inv.rutProveedor,
+            knownName: inv.razonSocial
+          })
+        });
+
+        const result = await resProcess.json();
+        if (result.error) throw new Error(result.error);
+
+        onDataExtracted(result);
+        alert('¡Factura procesada con éxito (Visión)!');
+        setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, procesada: true } : i));
       } else {
-        // Fallback: primero obtener la urlXml del documento
-        const docRes = await fetch(`/api/fetch-xml?id=${inv.id}`);
-        if (!docRes.ok) {
-          throw new Error('Esta factura no tiene XML disponible en Bsale');
+        // Modo XML: flujo existente
+        let xmlContent = '';
+
+        if (inv.urlXml) {
+          const resXml = await fetch(`/api/fetch-xml?id=${encodeURIComponent(inv.urlXml)}`);
+          if (!resXml.ok) {
+            const errData = await resXml.json().catch(() => ({}));
+            throw new Error(errData.error || `Error al obtener XML (${resXml.status})`);
+          }
+          xmlContent = await resXml.text();
+        } else {
+          const docRes = await fetch(`/api/fetch-xml?id=${inv.id}`);
+          if (!docRes.ok) {
+            throw new Error('Esta factura no tiene XML disponible en Bsale');
+          }
+          xmlContent = await docRes.text();
         }
-        xmlContent = await docRes.text();
+
+        const resProcess = await fetch('/api/process-xml', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            xmlContent,
+            knownRut: inv.rutProveedor,
+            knownName: inv.razonSocial
+          })
+        });
+
+        const result = await resProcess.json();
+        if (result.error) throw new Error(result.error);
+
+        onDataExtracted(result);
+        alert('¡Factura procesada con éxito!');
+        setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, procesada: true } : i));
       }
-      
-      // 2. Procesar con Claude
-      const resProcess = await fetch('/api/process-xml', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          xmlContent,
-          knownRut: inv.rutProveedor,
-          knownName: inv.razonSocial
-        })
-      });
-      
-      const result = await resProcess.json();
-      if (result.error) throw new Error(result.error);
-      
-      // 3. Notificar al padre (llenar la tabla de validación)
-      onDataExtracted(result);
-      
-      alert('¡Factura procesada con éxito!');
-      
-      // Marcar como procesada localmente para visualización
-      setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, procesada: true } : i));
-      
     } catch (error: any) {
       console.error('Error processing invoice:', error);
       alert('Error al procesar factura: ' + error.message);
@@ -216,20 +293,73 @@ export default function AutoReceptionModule({ onDataExtracted }: AutoReceptionMo
                         <span className="text-xs font-medium text-green-600 bg-green-100 px-2 py-1 rounded-full">
                           Procesada
                         </span>
-                      ) : (
+                      ) : preferences[inv.rutProveedor] ? (
                         <>
                           <button
                             onClick={() => handleProcess(inv)}
                             disabled={processingId !== null || ignoringId !== null}
                             className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-action hover:bg-orange-600 transition-colors disabled:bg-gray-400"
-                            title="Procesar factura con Claude"
+                            title={`Procesar con ${preferences[inv.rutProveedor] === 'vision' ? 'Visión (PDF)' : 'XML'}`}
+                          >
+                            {processingId === inv.id ? (
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                            ) : preferences[inv.rutProveedor] === 'vision' ? (
+                              <Eye className="h-3 w-3 mr-1" />
+                            ) : (
+                              <FileText className="h-3 w-3 mr-1" />
+                            )}
+                            Procesar ({preferences[inv.rutProveedor] === 'vision' ? 'Visión' : 'XML'})
+                          </button>
+                          <button
+                            onClick={() => setPendingPrefRut(inv.rutProveedor)}
+                            disabled={processingId !== null || ignoringId !== null}
+                            className="text-xs text-gray-400 hover:text-primary underline"
+                            title="Cambiar preferencia de fuente"
+                          >
+                            cambiar
+                          </button>
+                          <button
+                            onClick={() => handleIgnore(inv)}
+                            disabled={processingId !== null || ignoringId !== null}
+                            className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-600 bg-white hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition-colors disabled:bg-gray-100 disabled:text-gray-400"
+                            title="Ignorar - No representa aumento de stock"
+                          >
+                            {ignoringId === inv.id ? (
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                            ) : (
+                              <EyeOff className="h-3 w-3 mr-1" />
+                            )}
+                            Ignorar
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-xs text-gray-400 mr-1">Seleccionar:</span>
+                          <button
+                            onClick={() => { savePreference(inv.rutProveedor, 'xml').then(() => handleProcess(inv, 'xml')); }}
+                            disabled={processingId !== null || ignoringId !== null}
+                            className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-primary hover:bg-primary/90 transition-colors disabled:bg-gray-400"
+                            title="Procesar usando XML"
                           >
                             {processingId === inv.id ? (
                               <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                             ) : (
-                              <Zap className="h-3 w-3 mr-1" />
+                              <FileText className="h-3 w-3 mr-1" />
                             )}
-                            Procesar
+                            XML
+                          </button>
+                          <button
+                            onClick={() => { savePreference(inv.rutProveedor, 'vision').then(() => handleProcess(inv, 'vision')); }}
+                            disabled={processingId !== null || ignoringId !== null}
+                            className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-action hover:bg-orange-600 transition-colors disabled:bg-gray-400"
+                            title="Procesar usando Visión (PDF desde Bsale)"
+                          >
+                            {processingId === inv.id ? (
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                            ) : (
+                              <Eye className="h-3 w-3 mr-1" />
+                            )}
+                            Visión
                           </button>
                           <button
                             onClick={() => handleIgnore(inv)}
@@ -261,6 +391,54 @@ export default function AutoReceptionModule({ onDataExtracted }: AutoReceptionMo
               : 'Todas las facturas han sido procesadas o ignoradas.'}
           </p>
         )
+      )}
+
+      {/* Modal de cambio de preferencia */}
+      {pendingPrefRut && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setPendingPrefRut(null)}>
+          <div className="bg-white rounded-lg p-6 shadow-xl max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-primary mb-2">Cambiar preferencia de fuente</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Proveedor RUT: <span className="font-mono font-medium">{pendingPrefRut}</span>
+            </p>
+            <div className="flex gap-3 mb-4">
+              <button
+                onClick={() => {
+                  savePreference(pendingPrefRut, 'xml');
+                  setPendingPrefRut(null);
+                }}
+                className={`flex-1 inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-md border ${
+                  preferences[pendingPrefRut] === 'xml'
+                    ? 'text-white bg-primary border-primary'
+                    : 'text-primary border-primary/30 hover:bg-primary/5'
+                }`}
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                XML
+              </button>
+              <button
+                onClick={() => {
+                  savePreference(pendingPrefRut, 'vision');
+                  setPendingPrefRut(null);
+                }}
+                className={`flex-1 inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-md border ${
+                  preferences[pendingPrefRut] === 'vision'
+                    ? 'text-white bg-action border-action'
+                    : 'text-action border-action/30 hover:bg-action/5'
+                }`}
+              >
+                <Eye className="h-4 w-4 mr-2" />
+                Visión
+              </button>
+            </div>
+            <button
+              onClick={() => setPendingPrefRut(null)}
+              className="w-full text-sm text-gray-400 hover:text-gray-600"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
