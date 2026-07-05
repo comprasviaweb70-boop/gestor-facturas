@@ -103,7 +103,7 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
             const itemRutNorm = (itemRut || '').replace(/[^0-9Kk]/g, '').toUpperCase();
             return (eq.supplier_code || '').trim() === itemCodigo && 
               (!eq.rut_provider || eqRut === itemRutNorm);
-          });
+          }) || data.find(eq => (eq.supplier_code || '').trim() === itemCodigo);
           
           if (match) {
             return { ...item, internal_sku: match.internal_sku };

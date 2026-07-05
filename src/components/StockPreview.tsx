@@ -88,6 +88,12 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
               equivalences[eq.supplier_code] = eq.internal_sku;
             }
           });
+          // Fallback final: si aun no hay match, asignar por supplier_code sin importar RUT
+          eqData.forEach((eq: any) => {
+            if (!equivalences[eq.supplier_code] && eq.internal_sku) {
+              equivalences[eq.supplier_code] = eq.internal_sku;
+            }
+          });
         }
       }
 
