@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getBsaleToken, missingTokenResponse, bsaleFetch } from '@/lib/bsale';
+import { validateStockItems, buildStockReceptionPayload } from '@/lib/invoice-utils';
 
 export async function POST(request: Request) {
   if (!getBsaleToken()) {
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
     }
 
     // Verificar que todos los items tengan SKU y cantidad
-    const invalidItems = items.filter((item: any) => !item.code || item.quantity <= 0);
+    const invalidItems = validateStockItems(items);
     if (invalidItems.length > 0) {
       return NextResponse.json({
         error: `${invalidItems.length} producto(s) no tienen SKU o tienen cantidad 0.`,
@@ -29,17 +30,7 @@ export async function POST(request: Request) {
     }
 
     // Construir payload para Bsale
-    const payload = {
-      document: "Factura",
-      officeId: Number(officeId),
-      documentNumber: String(folio || ''),
-      note: `Recepción automática - ${razonSocial || 'Proveedor'}`,
-      details: items.map((item: any) => ({
-        quantity: Number(item.quantity),
-        code: String(item.code),
-        cost: Number(item.cost),
-      })),
-    };
+    const payload = buildStockReceptionPayload(officeId, folio, razonSocial, items);
 
     console.log('=== ENVIANDO RECEPCIÓN DE STOCK A BSALE ===');
     console.log('Payload:', JSON.stringify(payload, null, 2));

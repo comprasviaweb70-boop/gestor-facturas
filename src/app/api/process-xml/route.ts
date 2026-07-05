@@ -2,6 +2,18 @@ import Anthropic from '@anthropic-ai/sdk';
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { hasValidCode } from '@/lib/skuUtils';
+import {
+  extractJson,
+  parseSpanishNumber,
+  calcularFleteOcultoBruto,
+  normalizeRut,
+  detectHiperkorMultiplier,
+  detectDimakMultiplier,
+  detectBatMultiplier,
+  detectPackMultiplier,
+  detectAlcoholTaxRate,
+  distributeFreight,
+} from '@/lib/invoice-utils';
 
 // Permitir más tiempo para procesamiento de imágenes/PDF
 export const maxDuration = 60;
@@ -185,39 +197,6 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
     let data = null;
     const rawText = text.trim();
 
-    const extractJson = (str: string): any => {
-      let cleaned = str.trim();
-
-      const firstBrace = cleaned.indexOf('{');
-      const lastBrace = cleaned.lastIndexOf('}');
-      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-        const potentialJson = cleaned.substring(firstBrace, lastBrace + 1);
-        try { return JSON.parse(potentialJson); } catch {}
-      }
-
-      const firstBracket = cleaned.indexOf('[');
-      const lastBracket = cleaned.lastIndexOf(']');
-      if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
-        const potentialArray = cleaned.substring(firstBracket, lastBracket + 1);
-        try { return JSON.parse(potentialArray); } catch {}
-      }
-
-      const fixJson = (s: string): any => {
-        try {
-          return JSON.parse(s
-            .replace(/'/g, '"')
-            .replace(/(\w+):/g, '"$1":')
-            .replace(/,(\s*[}\]])/g, '$1')
-          );
-        } catch { return null; }
-      };
-
-      const fixed = fixJson(cleaned);
-      if (fixed) return fixed;
-
-      throw new Error('No se pudo extraer JSON válido de la respuesta de Claude');
-    };
-
     try {
       data = extractJson(rawText);
     } catch (parseError) {
@@ -249,16 +228,8 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
     if (!razonSocial && knownName) razonSocial = knownName;
     if (knownName && !data.razonSocial) data.razonSocial = knownName;
     
-    // Normalizar RUT (quitar puntos, guiones y espacios) para comparaciones consistentes (ej: 12345678K)
-    const normalizedRut = rutEmisor?.replace(/[^0-9Kk]/g, '').toUpperCase();
-    
-    // Función reutilizable: Cálculo de Flete Oculto en Precio Bruto
-    const calcularFleteOcultoBruto = (pBrutoUni: number, pNetoUni: number, imptoAdicRate: number) => {
-      if (!pBrutoUni || pBrutoUni <= 0) return 0;
-      // Fórmula corregida: [[Bruto - (Neto * (1 + 0.19 + ILA))] / 1.19]
-      const fleteUni = (pBrutoUni - (pNetoUni * (1 + 0.19 + imptoAdicRate))) / 1.19;
-      return Math.max(0, fleteUni); 
-    };
+    // Normalizar RUT (quitar puntos, guiones y espacios) para comparaciones consistentes
+    const normalizedRut = normalizeRut(rutEmisor);
     
     if (items && Array.isArray(items)) {
       // Regla General: Detectar packs o displays y calcular unidades reales
@@ -269,81 +240,24 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
         }
         item.cantidad = Number(item.cantidad) || 0;
 
-        const parseSpanishNumber = (val: any) => {
-          if (typeof val === 'string') {
-            let str = val.trim();
-            if (str.includes('.') && str.includes(',')) {
-              str = str.replace(/\./g, '').replace(/,/g, '.');
-            } else if (str.includes(',')) {
-              str = str.replace(/,/g, '.');
-            }
-            const num = parseFloat(str);
-            return isNaN(num) ? 0 : num;
-          }
-          if (typeof val === 'number') {
-            return isNaN(val) ? 0 : val;
-          }
-          return 0;
-        };
-
         item.precioUnitario = parseSpanishNumber(item.precioUnitario);
         item.precioBrutoUnitario = parseSpanishNumber(item.precioBrutoUnitario);
         item.subtotalNeto = parseSpanishNumber(item.subtotalNeto);
         item.impuestosAdicionales = parseSpanishNumber(item.impuestosAdicionales);
 
-        const nombreUpper = (item.nombre || '').toUpperCase();
         let multiplier = 1;
 
-        // Regla específica para HIPERKOR (RUT: 78753810K)
-        // En este proveedor viene el número de unidades después de una X (ej: PEPSI DES 1.5LT X6 BEBIDA)
         if (normalizedRut?.startsWith('78753810') || (data.razonSocial && data.razonSocial.toUpperCase().includes('HIPER'))) {
-          // Captura "X6", "X 6", "CJ 24", "CJA 12", "6 UN"
-          const hiperkorMatch = nombreUpper.match(/(?:\bX\s*(\d+)\b|\b(?:CJ|CJA|CAJA)\s*(\d+)\b|(\d+)\s*(?:UN|UNID|UNIDADES)\b)/);
-          if (hiperkorMatch) {
-            multiplier = parseInt(hiperkorMatch[1] || hiperkorMatch[2] || hiperkorMatch[3], 10);
-          }
+          multiplier = detectHiperkorMultiplier(item.nombre);
         }
-        
-        // Regla específica para DIMAK (RUT: 788095600)
-        // Si termina en un número seguido de espacio y X (ej: "CERVEZA 6 X")
-        if (normalizedRut === '788095600' || (data.razonSocial && data.razonSocial.toUpperCase().includes('DIMAK'))) {
-          const dimakMatch = nombreUpper.trim().match(/(\d+)\s+X$/);
-          if (dimakMatch) {
-            multiplier = parseInt(dimakMatch[1], 10);
-          }
+        if (multiplier === 1 && (normalizedRut === '788095600' || (data.razonSocial && data.razonSocial.toUpperCase().includes('DIMAK')))) {
+          multiplier = detectDimakMultiplier(item.nombre);
         }
-
-        // Regla específica para BAT Chile S.A (RUT: 88502900-0)
-        // Este proveedor vende cigarros. En la columna cantidad indica la cantidad de paquetes,
-        // por lo que para convertirlo a unidades reales se debe multiplicar por el valor (10, 18 o 20)
-        // que está al final del detalle de cada producto y acompañado de inmediato de una S (ej: 20s, 18s o 10s)
-        if (normalizedRut === '885029000' || (data.razonSocial && data.razonSocial.toUpperCase().includes('BAT CHILE'))) {
-          const batMatch = nombreUpper.match(/(10|18|20)S\b/);
-          if (batMatch) {
-            multiplier = parseInt(batMatch[1], 10);
-          }
+        if (multiplier === 1 && (normalizedRut === '885029000' || (data.razonSocial && data.razonSocial.toUpperCase().includes('BAT CHILE')))) {
+          multiplier = detectBatMultiplier(item.nombre);
         }
-
-        // Si no se encontró multiplicador por regla específica, aplicar reglas generales
         if (multiplier === 1) {
-          // Caso 1: Patrón AxBxC (ej: 12X30X15 GRS), el segundo término es la cantidad de unidades
-          const multiXMatch = nombreUpper.match(/(\d+)\s*X\s*(\d+)\s*X\s*\d+/);
-          if (multiXMatch) {
-            multiplier = parseInt(multiXMatch[2], 10);
-          } else {
-            // Caso 2: Palabra unidades, unid, un precedida por un número
-            // Usamos límites de palabra \b para evitar falsos positivos con "BUN", "LUN", etc.
-            const unMatch = nombreUpper.match(/(\d+)\s*(?:UNIDADES|UNID|UN)\b/);
-            if (unMatch) {
-              multiplier = parseInt(unMatch[1], 10);
-            } else {
-              // Caso 3: PACK o DISPLAY seguido de un número
-              const packMatch = nombreUpper.match(/(?:PACK|DISPLAY)\s*(?:DE\s*)?(\d+)/);
-              if (packMatch) {
-                multiplier = parseInt(packMatch[1], 10);
-              }
-            }
-          }
+          multiplier = detectPackMultiplier(item.nombre);
         }
 
         item.unidadesPorPack = multiplier;
@@ -474,7 +388,6 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
       // Reglas especiales por proveedor
       // MAD CHARLIES (RUT: 776596078) - Distribución de flete
       if (normalizedRut === '776596078' || (data.razonSocial && data.razonSocial.toUpperCase().includes('MAD CHARLIES'))) {
-        // MAD CHARLIES es proveedor de cerveza, aplicar 20.5% de impuesto a todo (excepto flete)
         items.forEach((item: any) => {
           const name = (item.nombre || '').toUpperCase();
           if (name.includes('SIN ALCOHOL')) {
@@ -484,44 +397,30 @@ Responde ÚNICAMENTE con el objeto JSON válido.`;
           }
         });
 
-        const deliveryItemIndex = items.findIndex((item: any) => 
-          (item.nombre || '').toUpperCase().includes('DELIVERY') || 
-          (item.nombre || '').toUpperCase().includes('FLETE')
-        );
+        const deliveryItemIndex = items.findIndex((item: any) => {
+          const name = (item.nombre || '').toUpperCase();
+          return name.includes('DELIVERY') || name.includes('FLETE');
+        });
 
         if (deliveryItemIndex >= 0) {
           const deliveryItem = items[deliveryItemIndex];
           const totalDelivery = deliveryItem.subtotalNeto || ((deliveryItem.cantidad || 0) * (deliveryItem.precioUnitario || 0));
-          
-          // Eliminar el item de delivery de la lista
           items.splice(deliveryItemIndex, 1);
-          
-          // Calcular total de unidades de productos restantes
-          const totalUnits = items.reduce((acc: number, item: any) => acc + (Number(item.cantidad) || 0), 0);
-          
-          if (totalUnits > 0) {
-            const deliveryUnitario = totalDelivery / totalUnits;
-            console.log(`MAD CHARLIES: Distribuyendo ${totalDelivery} de flete entre ${totalUnits} unidades. Delivery unitario: ${deliveryUnitario}`);
-            
-            // Asignar fleteTotal por línea = deliveryUnitario × cantidad del ítem
-            items.forEach((item: any) => {
-              item.fleteTotal = deliveryUnitario * (item.cantidad || 1);
-            });
-          }
+
+          const itemsConFlete = distributeFreight(items, totalDelivery);
+          items.forEach((item: any, idx: number) => {
+            item.fleteTotal = itemsConFlete[idx].fleteTotal;
+          });
         }
       }
 
       // DIMAK (RUT: 78809560-0) - Regla de grados alcohólicos
       if (normalizedRut === '788095600' || (data.razonSocial && data.razonSocial.toUpperCase().includes('DIMAK'))) {
         items.forEach((item: any) => {
-          const nombreUpper = (item.nombre || '').toUpperCase();
-          // Buscar un número seguido por "°", "º" o errores de encoding como "Â°", "ÃÂ°", "Ã°", con o sin espacio
-          const match = nombreUpper.match(/(\d+(?:[.,]\d+)?)\s*(?:°|º|Â°|ÃÂ°|Ã°)/);
-          if (match) {
-            const grados = parseFloat(match[1].replace(',', '.'));
-            const tasa = grados < 20 ? 0.205 : 0.315;
+          const tasa = detectAlcoholTaxRate(item.nombre);
+          if (tasa > 0) {
             item.impuestosAdicionales = Math.round((item.subtotalNeto || 0) * tasa);
-            console.log(`DIMAK: Detectado grado alcohólico (${grados}°) en ${item.nombre}. Aplicando ILA ${tasa * 100}% -> ${item.impuestosAdicionales}`);
+            console.log(`DIMAK: Detectado grado alcohólico en ${item.nombre}. Aplicando ILA ${tasa * 100}% -> ${item.impuestosAdicionales}`);
           }
         });
       }
