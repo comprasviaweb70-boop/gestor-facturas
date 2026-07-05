@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { extractWithClaude } from '@/lib/extractors/claude-extractor';
+import { extractWithGemini } from '@/lib/extractors/gemini-extractor';
 import { runPipeline } from '@/lib/supplier-rules';
 import { processEquivalences, fetchTaxRates } from '@/lib/equivalence-service';
 import { normalizeRut } from '@/lib/invoice-utils';
@@ -31,15 +32,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Tipo de archivo no soportado.' }, { status: 400 });
     }
 
-    // 1. Extracción con Claude
+    // 1. Extracción con Claude (fallback a Gemini si falla)
     let extractionResult;
+    let extractorUsed: 'claude' | 'gemini' = 'claude';
     try {
       extractionResult = await extractWithClaude({ xmlContent, fileBase64, fileType });
-    } catch (err: any) {
-      const preview = (err.message || '').substring(0, 300);
-      return NextResponse.json({
-        error: `Error al procesar factura: ${preview}...`,
-      }, { status: 500 });
+    } catch (claudeErr: any) {
+      console.warn('Claude falló, intentando con Gemini como fallback:', claudeErr.message);
+      try {
+        extractionResult = await extractWithGemini({ xmlContent, fileBase64, fileType });
+        extractorUsed = 'gemini';
+      } catch (geminiErr: any) {
+        const preview = (geminiErr.message || '').substring(0, 300);
+        return NextResponse.json({
+          error: `Error al procesar factura (Claude y Gemini fallaron): ${preview}...`,
+        }, { status: 500 });
+      }
     }
 
     const { data, sourceFormat } = extractionResult;
@@ -55,7 +63,7 @@ export async function POST(request: Request) {
     const taxRates = await fetchTaxRates();
 
     // 4. Ejecutar pipeline de reglas
-    const invoiceData = runPipeline(data, taxRates, sourceFormat, 'claude');
+    const invoiceData = runPipeline(data, taxRates, sourceFormat, extractorUsed);
 
     // 5. Procesar equivalencias SKU
     if (invoiceData.items && invoiceData.items.length > 0) {
