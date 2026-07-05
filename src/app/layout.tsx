@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SIAI - Pantalla de Validación | Iciz Market",
+  title: "Sistema de Gestión de Facturas",
   description: "Sistema de gestión de facturas y mapeo de SKUs para Bsale",
   icons: {
     icon: '/favicon.png',
