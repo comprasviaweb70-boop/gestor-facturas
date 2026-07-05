@@ -96,8 +96,8 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
 
       if (error) throw error;
 
-      console.log('[searchEquivalences] Códigos buscados:', codigos);
-      console.log('[searchEquivalences] Equivalencias encontradas:', data?.length || 0, data);
+      console.log('[searchEquivalences] Códigos buscados:', JSON.stringify(codigos));
+      console.log('[searchEquivalences] Equivalencias encontradas:', data?.length || 0, data ? JSON.stringify(data) : 'null');
 
       if (data) {
         const updatedItems = itemsList.map(item => {
