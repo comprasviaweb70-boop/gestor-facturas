@@ -1,0 +1,63 @@
+{
+  "provider": "MAD CHARLIES",
+  "rutEmisor": "776596078",
+  "razonSocial": "MAD CHARLIES",
+  "sourceFormat": "xml",
+  "rawData": {
+    "rutEmisor": "776596078",
+    "folio": "4004",
+    "razonSocial": "MAD CHARLIES",
+    "items": [
+      {
+        "nombre": "CERVEZA IPA 330ML",
+        "codigo": "IPA330",
+        "cantidad": 24,
+        "precioUnitario": 800,
+        "precioBrutoUnitario": 0,
+        "subtotalNeto": 19200,
+        "impuestosAdicionales": 0
+      },
+      {
+        "nombre": "CERVEZA SIN ALCOHOL 330ML",
+        "codigo": "SINALC",
+        "cantidad": 12,
+        "precioUnitario": 600,
+        "precioBrutoUnitario": 0,
+        "subtotalNeto": 7200,
+        "impuestosAdicionales": 0
+      },
+      {
+        "nombre": "DELIVERY",
+        "codigo": "DELIV",
+        "cantidad": 1,
+        "precioUnitario": 3000,
+        "precioBrutoUnitario": 0,
+        "subtotalNeto": 3000,
+        "impuestosAdicionales": 0
+      }
+    ]
+  },
+  "expectedItems": [
+    {
+      "nombre": "CERVEZA IPA 330ML",
+      "codigo": "IPA330",
+      "cantidad": 24,
+      "precioBrutoUnitario": 0,
+      "impuestosAdicionales": 3936,
+      "fleteTotal": 2000,
+      "unidadesPorPack": 1,
+      "cantidadReal": 24
+    },
+    {
+      "nombre": "CERVEZA SIN ALCOHOL 330ML",
+      "codigo": "SINALC",
+      "cantidad": 12,
+      "precioBrutoUnitario": 0,
+      "impuestosAdicionales": 720,
+      "fleteTotal": 1000,
+      "unidadesPorPack": 1,
+      "cantidadReal": 12
+    }
+  ],
+  "notes": "MAD CHARLIES: delivery removido, flete distribuido proporcional. Cerveza=20.5%, Sin Alcohol=10%. 24/36*3000=2000, 12/36*3000=1000"
+}

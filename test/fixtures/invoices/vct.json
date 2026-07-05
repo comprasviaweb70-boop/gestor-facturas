@@ -1,0 +1,46 @@
+{
+  "provider": "VCT",
+  "rutEmisor": "850379009",
+  "razonSocial": "VCT",
+  "sourceFormat": "xml",
+  "rawData": {
+    "rutEmisor": "850379009",
+    "folio": "6006",
+    "razonSocial": "VCT",
+    "items": [
+      {
+        "nombre": "CERVEZA NEGRA 500ML",
+        "codigo": "NEGRA500",
+        "cantidad": 12,
+        "precioUnitario": 700,
+        "precioBrutoUnitario": 0,
+        "subtotalNeto": 8400,
+        "impuestosAdicionales": 0,
+        "fleteTotal": 500
+      },
+      {
+        "nombre": "SERVICIO LOGISTICO",
+        "codigo": "SERVLOG",
+        "cantidad": 1,
+        "precioUnitario": 1000,
+        "precioBrutoUnitario": 0,
+        "subtotalNeto": 1000,
+        "impuestosAdicionales": 0,
+        "fleteTotal": 0
+      }
+    ]
+  },
+  "expectedItems": [
+    {
+      "nombre": "CERVEZA NEGRA 500ML",
+      "codigo": "NEGRA500",
+      "cantidad": 12,
+      "precioBrutoUnitario": 0,
+      "impuestosAdicionales": 1722,
+      "fleteTotal": 1500,
+      "unidadesPorPack": 1,
+      "cantidadReal": 12
+    }
+  ],
+  "notes": "VCT: subtotalNeto recalculado=precioUnitario*cantidad. Serv log removido, flete distribuido. Impuestos recalculados. fleteTotal=500+1000=1500. ILA 20.5% sobre 8400=1722."
+}

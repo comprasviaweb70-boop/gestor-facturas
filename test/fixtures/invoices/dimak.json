@@ -1,0 +1,54 @@
+{
+  "provider": "DIMAK",
+  "rutEmisor": "788095600",
+  "razonSocial": "DIMAK",
+  "sourceFormat": "xml",
+  "rawData": {
+    "rutEmisor": "788095600",
+    "folio": "2002",
+    "razonSocial": "DIMAK",
+    "items": [
+      {
+        "nombre": "CERVEZA KUNSTMANN 6 X",
+        "codigo": "KUNST6",
+        "cantidad": 3,
+        "precioUnitario": 5000,
+        "precioBrutoUnitario": 0,
+        "subtotalNeto": 15000,
+        "impuestosAdicionales": 0
+      },
+      {
+        "nombre": "PISCO CAPPEL 35° 750ML",
+        "codigo": "PISCO35",
+        "cantidad": 5,
+        "precioUnitario": 3000,
+        "precioBrutoUnitario": 0,
+        "subtotalNeto": 15000,
+        "impuestosAdicionales": 0
+      }
+    ]
+  },
+  "expectedItems": [
+    {
+      "nombre": "CERVEZA KUNSTMANN 6 X",
+      "codigo": "KUNST6",
+      "cantidad": 18,
+      "precioBrutoUnitario": 0,
+      "impuestosAdicionales": 3075,
+      "fleteTotal": 0,
+      "unidadesPorPack": 6,
+      "cantidadReal": 18
+    },
+    {
+      "nombre": "PISCO CAPPEL 35° 750ML",
+      "codigo": "PISCO35",
+      "cantidad": 5,
+      "precioBrutoUnitario": 0,
+      "impuestosAdicionales": 4725,
+      "fleteTotal": 0,
+      "unidadesPorPack": 1,
+      "cantidadReal": 5
+    }
+  ],
+  "notes": "DIMAK: packs 'N X' multiplicados, ILA por grado alcohólico (<20°=20.5%, >=20°=31.5%)"
+}

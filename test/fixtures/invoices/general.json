@@ -1,0 +1,54 @@
+{
+  "provider": "GENERAL",
+  "rutEmisor": "123456789",
+  "razonSocial": "PROVEEDOR GENERIC",
+  "sourceFormat": "xml",
+  "rawData": {
+    "rutEmisor": "12345678-9",
+    "folio": "7007",
+    "razonSocial": "PROVEEDOR GENERIC",
+    "items": [
+      {
+        "nombre": "BEBIDA COLA 1.5LT",
+        "codigo": "COLA15",
+        "cantidad": 10,
+        "precioUnitario": 500,
+        "precioBrutoUnitario": 0,
+        "subtotalNeto": 5000,
+        "impuestosAdicionales": 0
+      },
+      {
+        "nombre": "GALLETA CHOCOLATE",
+        "codigo": "GALCHO",
+        "cantidad": 5,
+        "precioUnitario": 300,
+        "precioBrutoUnitario": 0,
+        "subtotalNeto": 1500,
+        "impuestosAdicionales": 0
+      }
+    ]
+  },
+  "expectedItems": [
+    {
+      "nombre": "BEBIDA COLA 1.5LT",
+      "codigo": "COLA15",
+      "cantidad": 10,
+      "precioBrutoUnitario": 0,
+      "impuestosAdicionales": 900,
+      "fleteTotal": 0,
+      "unidadesPorPack": 1,
+      "cantidadReal": 10
+    },
+    {
+      "nombre": "GALLETA CHOCOLATE",
+      "codigo": "GALCHO",
+      "cantidad": 5,
+      "precioBrutoUnitario": 0,
+      "impuestosAdicionales": 0,
+      "fleteTotal": 0,
+      "unidadesPorPack": 1,
+      "cantidadReal": 5
+    }
+  ],
+  "notes": "Proveedor genérico sin reglas especiales. Auto-detección de packs general (sin patrón). Sin ILA."
+}

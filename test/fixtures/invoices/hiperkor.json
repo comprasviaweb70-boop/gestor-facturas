@@ -1,0 +1,54 @@
+{
+  "provider": "Hiperkor",
+  "rutEmisor": "78753810K",
+  "razonSocial": "HIPERKOR",
+  "sourceFormat": "xml",
+  "rawData": {
+    "rutEmisor": "78753810K",
+    "folio": "1001",
+    "razonSocial": "HIPERKOR",
+    "items": [
+      {
+        "nombre": "STELLA ARTOIS X6",
+        "codigo": "STELLA6",
+        "cantidad": 2,
+        "precioUnitario": 8000,
+        "precioBrutoUnitario": 0,
+        "subtotalNeto": 16000,
+        "impuestosAdicionales": 0
+      },
+      {
+        "nombre": "AGUA MINERAL CJ 24",
+        "codigo": "AGUA24",
+        "cantidad": 1,
+        "precioUnitario": 12000,
+        "precioBrutoUnitario": 0,
+        "subtotalNeto": 12000,
+        "impuestosAdicionales": 0
+      }
+    ]
+  },
+  "expectedItems": [
+    {
+      "nombre": "STELLA ARTOIS X6",
+      "codigo": "STELLA6",
+      "cantidad": 12,
+      "precioBrutoUnitario": 0,
+      "impuestosAdicionales": 2351.33,
+      "fleteTotal": 0,
+      "unidadesPorPack": 6,
+      "cantidadReal": 12
+    },
+    {
+      "nombre": "AGUA MINERAL CJ 24",
+      "codigo": "AGUA24",
+      "cantidad": 24,
+      "precioBrutoUnitario": 0,
+      "impuestosAdicionales": 930.23,
+      "fleteTotal": 0,
+      "unidadesPorPack": 24,
+      "cantidadReal": 24
+    }
+  ],
+  "notes": "Hiperkor: bruto→neto con ILA, packs multiplicados, flete=0. Stella=cerveza(ILA 20.5%), Agua=10%"
+}

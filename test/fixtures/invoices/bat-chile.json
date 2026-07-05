@@ -1,0 +1,54 @@
+{
+  "provider": "BAT Chile",
+  "rutEmisor": "885029000",
+  "razonSocial": "BAT CHILE",
+  "sourceFormat": "xml",
+  "rawData": {
+    "rutEmisor": "885029000",
+    "folio": "3003",
+    "razonSocial": "BAT CHILE",
+    "items": [
+      {
+        "nombre": "KENT SILVER 20S",
+        "codigo": "KENT20",
+        "cantidad": 10,
+        "precioUnitario": 2500,
+        "precioBrutoUnitario": 0,
+        "subtotalNeto": 25000,
+        "impuestosAdicionales": 0
+      },
+      {
+        "nombre": "LUCKY STRIKE 10S",
+        "codigo": "LUCKY10",
+        "cantidad": 20,
+        "precioUnitario": 2000,
+        "precioBrutoUnitario": 0,
+        "subtotalNeto": 40000,
+        "impuestosAdicionales": 0
+      }
+    ]
+  },
+  "expectedItems": [
+    {
+      "nombre": "KENT SILVER 20S",
+      "codigo": "KENT20",
+      "cantidad": 200,
+      "precioBrutoUnitario": 0,
+      "impuestosAdicionales": 0,
+      "fleteTotal": 0,
+      "unidadesPorPack": 20,
+      "cantidadReal": 200
+    },
+    {
+      "nombre": "LUCKY STRIKE 10S",
+      "codigo": "LUCKY10",
+      "cantidad": 200,
+      "precioBrutoUnitario": 0,
+      "impuestosAdicionales": 0,
+      "fleteTotal": 0,
+      "unidadesPorPack": 10,
+      "cantidadReal": 200
+    }
+  ],
+  "notes": "BAT Chile: multiplicador por patrón XXS (10/18/20). Sin ILA en fixture base."
+}
