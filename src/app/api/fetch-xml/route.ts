@@ -1,6 +1,20 @@
 import { NextResponse } from 'next/server';
 import { getBsaleToken, missingTokenResponse, bsaleFetch } from '@/lib/bsale';
 
+const ALLOWED_XML_HOSTS = ['app2.bsale.cl', 'api.bsale.cl', 's3.amazonaws.com'];
+
+function isAllowedUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:') return false;
+    return ALLOWED_XML_HOSTS.some(
+      host => parsed.hostname === host || parsed.hostname.endsWith('.' + host)
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id'); // puede ser un ID numérico o la urlXml directa
@@ -16,6 +30,10 @@ export async function GET(request: Request) {
 
     // Si el ID es directamente la URL del XML (como viene en urlXml de third_party_documents)
     if (id.startsWith('http')) {
+      if (!isAllowedUrl(id)) {
+        return NextResponse.json({ error: 'URL no permitida. Solo se aceptan URLs de Bsale.' }, { status: 403 });
+      }
+
       const res = await fetch(id);
 
       if (!res.ok) {
@@ -45,6 +63,6 @@ export async function GET(request: Request) {
     }
   } catch (error: any) {
     console.error('Error en fetch-xml:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Error al obtener el XML del documento.' }, { status: 500 });
   }
 }

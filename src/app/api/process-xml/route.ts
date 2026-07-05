@@ -18,6 +18,9 @@ import {
 // Permitir más tiempo para procesamiento de imágenes/PDF
 export const maxDuration = 60;
 
+const MAX_XML_SIZE = 2 * 1024 * 1024; // 2MB para XML
+const MAX_FILE_BASE64_SIZE = 10 * 1024 * 1024; // ~7.5MB archivo real (10MB en base64)
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -25,6 +28,18 @@ export async function POST(request: Request) {
     
     if (!xmlContent && !fileBase64) {
       return NextResponse.json({ error: 'Falta contenido para procesar (XML, PDF o imagen)' }, { status: 400 });
+    }
+
+    if (xmlContent && xmlContent.length > MAX_XML_SIZE) {
+      return NextResponse.json({ error: 'El XML excede el tamaño máximo permitido (2MB).' }, { status: 413 });
+    }
+
+    if (fileBase64 && fileBase64.length > MAX_FILE_BASE64_SIZE) {
+      return NextResponse.json({ error: 'El archivo excede el tamaño máximo permitido.' }, { status: 413 });
+    }
+
+    if (fileType && !['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(fileType)) {
+      return NextResponse.json({ error: 'Tipo de archivo no soportado.' }, { status: 400 });
     }
 
     const apiKey = process.env.ANTHROPIC_API_KEY;
