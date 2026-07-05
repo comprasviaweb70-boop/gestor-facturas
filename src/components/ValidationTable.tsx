@@ -83,7 +83,10 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
     const codigos = itemsList
       .map(item => (item.codigo || item.supplier_code || '').trim())
       .filter(hasValidCode);
-    if (codigos.length === 0) return;
+    if (codigos.length === 0) {
+      console.warn('[searchEquivalences] No hay códigos válidos en los items:', itemsList);
+      return;
+    }
 
     try {
       const { data, error } = await supabase
@@ -92,6 +95,9 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
         .in('supplier_code', codigos);
 
       if (error) throw error;
+
+      console.log('[searchEquivalences] Códigos buscados:', codigos);
+      console.log('[searchEquivalences] Equivalencias encontradas:', data?.length || 0, data);
 
       if (data) {
         const updatedItems = itemsList.map(item => {
