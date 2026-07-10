@@ -30,7 +30,7 @@ Reglas críticas:
 - cantidad: devuélvela como string con el formato original (ej: "2/0"). NO la multipliques.
 - subtotalNeto, impuestosAdicionales y fleteTotal: devuélvelos SIEMPRE como números enteros sin puntos ni comas (ej. 4299, no "4.299"). En Chile el punto es separador de miles; ignóralo. Si no hay valor, usa 0.
 - subtotalNeto: usa el valor de "Neto Total" (ya incluye descuentos de la columna %Desc).
-- impuestosAdicionales: usa el valor de "Adicional" (I.A.B.A.).
+- impuestosAdicionales: usa ÚNICAMENTE el valor de la columna "Adicional" (I.A.B.A.). Si esa celda está vacía o en blanco, el valor debe ser exactamente 0. NUNCA uses el valor de la columna "I.V.A." ni ninguna otra columna como reemplazo.
 - fleteTotal: usa el valor de "Flete Total".
 - codigo: si no hay código, usa "S/C".
 - Responde ÚNICAMENTE con el objeto JSON válido.`,
