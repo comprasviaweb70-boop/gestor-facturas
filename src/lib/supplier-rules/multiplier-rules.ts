@@ -3,6 +3,7 @@ import {
   detectHiperkorMultiplier,
   detectDimakMultiplier,
   detectBatMultiplier,
+  detectCocaColaMultiplier,
   detectPackMultiplier,
 } from '../invoice-utils';
 
@@ -87,6 +88,29 @@ export const batMultiplierRule: SupplierRule = {
   },
 };
 
+export const cocaColaMultiplierRule: SupplierRule = {
+  stage: 'multiplier',
+  rutPrefix: '93281000',
+  nameContains: 'COCA',
+  apply: (ctx) => {
+    ctx.items.forEach((item) => {
+      const { antes, despues, multiplier } = detectCocaColaMultiplier(item.nombre);
+      const visualQuantity = item.cantidad || 0;
+      item.unidadesPorPack = antes * despues;
+      item.cantidadReal = visualQuantity * multiplier;
+      const originalCantidad = item.cantidad || 0;
+      item.cantidad = item.cantidadReal;
+      if (item.subtotalNeto && item.subtotalNeto > 0 && item.cantidadReal > 0) {
+        item.precioUnitario = item.subtotalNeto / item.cantidadReal;
+      }
+      if (multiplier > 1) {
+        console.log(`Pack Applied Auto (Coca-Cola): ${item.nombre} -> ${antes}X${despues}, Cantidad: ${originalCantidad} to ${item.cantidad}, PCU: ${item.precioUnitario}`);
+      }
+    });
+    return ctx;
+  },
+};
+
 export const generalPackRule: SupplierRule = {
   stage: 'multiplier',
   apply: (ctx) => {
@@ -112,6 +136,7 @@ export const multiplierRules: SupplierRule[] = [
   hiperkorMultiplierRule,
   dimakMultiplierRule,
   batMultiplierRule,
+  cocaColaMultiplierRule,
   generalPackRule,
 ];
 

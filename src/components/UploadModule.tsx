@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { UploadCloud, FileText, Loader2, FileImage, FileSpreadsheet, CheckCircle, XCircle, Trash2 } from 'lucide-react';
+import { UploadCloud, FileText, Loader2, FileImage, FileSpreadsheet, CheckCircle, XCircle, Trash2, ChevronDown, Building2 } from 'lucide-react';
+import { KNOWN_IMAGE_PROVIDERS } from '@/lib/providers';
 
 interface UploadModuleProps {
   onDataExtracted: (data: any) => void;
@@ -29,6 +30,7 @@ export default function UploadModule({ onDataExtracted }: UploadModuleProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [fileStatuses, setFileStatuses] = useState<FileStatus[]>([]);
+  const [selectedProvider, setSelectedProvider] = useState<string>('');
   const accumulatedDataRef = useRef<any>(null);
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -75,6 +77,8 @@ export default function UploadModule({ onDataExtracted }: UploadModuleProps) {
     const extension = file.name.split('.').pop()?.toLowerCase() || '';
     let requestBody: any;
 
+    const provider = KNOWN_IMAGE_PROVIDERS.find((p) => p.id === selectedProvider);
+
     if (extension === 'xml') {
       const text = await file.text();
       requestBody = { xmlContent: text };
@@ -83,6 +87,8 @@ export default function UploadModule({ onDataExtracted }: UploadModuleProps) {
       requestBody = {
         fileBase64: base64,
         fileType: MIME_TYPES[extension],
+        knownRut: provider?.rut,
+        knownName: provider?.name,
       };
     }
 
@@ -106,6 +112,16 @@ export default function UploadModule({ onDataExtracted }: UploadModuleProps) {
   };
 
   const processFiles = async (files: File[]) => {
+    // Para imágenes/PDF se requiere proveedor conocido
+    const hasImageOrPdf = files.some((file) => {
+      const ext = file.name.split('.').pop()?.toLowerCase() || '';
+      return ext !== 'xml';
+    });
+    if (hasImageOrPdf && !selectedProvider) {
+      alert('Selecciona el proveedor antes de subir una imagen o PDF.');
+      return;
+    }
+
     // Filtrar archivos válidos
     const validFiles: File[] = [];
     const rejected: string[] = [];
@@ -221,6 +237,34 @@ export default function UploadModule({ onDataExtracted }: UploadModuleProps) {
         )}
       </div>
       
+      {/* Selector de proveedor (solo para imagen/PDF) */}
+      <div className="mb-4">
+        <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-1.5">
+          <Building2 className="h-4 w-4 text-primary" />
+          Proveedor (requerido para imágenes y PDF)
+        </label>
+        <div className="relative">
+          <select
+            value={selectedProvider}
+            onChange={(e) => setSelectedProvider(e.target.value)}
+            className="w-full appearance-none bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary focus:border-primary block p-2.5 pr-10"
+          >
+            <option value="">Seleccionar proveedor...</option>
+            {KNOWN_IMAGE_PROVIDERS.map((provider) => (
+              <option key={provider.id} value={provider.id}>
+                {provider.name}
+              </option>
+            ))}
+          </select>
+          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-500">
+            <ChevronDown className="h-4 w-4" />
+          </div>
+        </div>
+        <p className="text-xs text-gray-500 mt-1">
+          Los archivos XML detectan el proveedor automáticamente.
+        </p>
+      </div>
+
       {/* Drop Zone */}
       <div
         onDragOver={handleDragOver}

@@ -83,10 +83,7 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
     const codigos = itemsList
       .map(item => (item.codigo || item.supplier_code || '').trim())
       .filter(hasValidCode);
-    if (codigos.length === 0) {
-      console.warn('[searchEquivalences] No hay códigos válidos en los items:', itemsList);
-      return;
-    }
+    if (codigos.length === 0) return;
 
     try {
       const { data, error } = await supabase
@@ -95,9 +92,6 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
         .in('supplier_code', codigos);
 
       if (error) throw error;
-
-      console.log('[searchEquivalences] Códigos buscados:', JSON.stringify(codigos));
-      console.log('[searchEquivalences] Equivalencias encontradas:', data?.length || 0, data ? JSON.stringify(data) : 'null');
 
       if (data) {
         const updatedItems = itemsList.map(item => {
@@ -278,19 +272,23 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
         const activeRut = rutEmisor || (item && item.rut_provider);
         const activeCodigo = item ? (item.codigo || item.supplier_code || '').trim() : null;
         
-        if (item && activeCodigo && activeRut) {
+        if (item && activeCodigo) {
           console.log('=== SAVING EQUIVALENCE ===');
           console.log('activeCodigo:', activeCodigo);
           console.log('activeRut:', activeRut);
           console.log('foundSku:', foundSku);
           
-          // Check if equivalence already exists
-          const { data: existing, error: checkError } = await supabase
+          // Check if equivalence already exists (by supplier_code only)
+          let existingQuery = supabase
             .from('sku_equivalences')
             .select('id')
-            .eq('supplier_code', activeCodigo)
-            .eq('rut_provider', activeRut)
-            .limit(1);
+            .eq('supplier_code', activeCodigo);
+          if (activeRut) {
+            existingQuery = existingQuery.eq('rut_provider', activeRut);
+          } else {
+            existingQuery = existingQuery.is('rut_provider', null);
+          }
+          const { data: existing, error: checkError } = await existingQuery.limit(1);
 
           if (checkError) {
             console.error('Error checking existing:', checkError);
@@ -315,7 +313,7 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
                 internal_sku: foundSku,
                 source_sku: activeCodigo,
                 supplier_code: activeCodigo,
-                rut_provider: activeRut,
+                rut_provider: activeRut || null,
                 supplier_name: 'Proveedor'
               })
               .select();
@@ -338,8 +336,8 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
             showToast(`Error al guardar: ${saveError.message}`, 'error');
           }
         } else {
-          console.warn('Missing data for save:', { activeCodigo, activeRut, hasItem: !!item });
-          showToast(`No se pudo guardar: faltan datos (Cód: ${activeCodigo || '?'}, RUT: ${activeRut || '?'})`, 'warning');
+          console.warn('Missing data for save:', { activeCodigo, hasItem: !!item });
+          showToast(`No se pudo guardar: faltan datos (Cód: ${activeCodigo || '?'})`, 'warning');
         }
       } else {
         showToast('No se encontró el producto en Bsale con ese código.', 'warning');
@@ -456,8 +454,8 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
                 const imptoAdic = Number(item.impuestosAdicionales) || 0;
                 const flete = Number(item.fleteTotal) || 0;
                 const cantidad = Number(item.cantidad) || 1;
-                // El PCU debe ser el costo neto real + impuestos adicionales, excluyendo el flete para el cálculo del margen
-                const pcu = calculatePCU(subtotalNeto, imptoAdic, cantidad);
+                // El PCU incluye flete según el modelo de costeo actual
+                const pcu = calculatePCU(subtotalNeto, imptoAdic, cantidad, flete);
                 
                 return (
                   <tr key={id} className="bg-white border-b hover:bg-gray-50">

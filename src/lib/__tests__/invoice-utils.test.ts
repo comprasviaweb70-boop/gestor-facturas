@@ -8,6 +8,7 @@ import {
   detectHiperkorMultiplier,
   detectDimakMultiplier,
   detectBatMultiplier,
+  detectCocaColaMultiplier,
   detectAlcoholTaxRate,
   distributeFreight,
   validateStockItems,
@@ -350,6 +351,43 @@ describe('detectBatMultiplier', () => {
 
   it('no matchea números que no son 10, 18 o 20', () => {
     expect(detectBatMultiplier('PRODUCTO 15S')).toBe(1);
+  });
+});
+
+// =============================================================================
+// detectCocaColaMultiplier
+// =============================================================================
+describe('detectCocaColaMultiplier', () => {
+  it('detecta patrón X06', () => {
+    const result = detectCocaColaMultiplier('COCA COLA X06 REF 1500 CC');
+    expect(result.antes).toBe(1);
+    expect(result.despues).toBe(6);
+    expect(result.multiplier).toBe(6);
+  });
+
+  it('detecta patrón X6 sin cero', () => {
+    const result = detectCocaColaMultiplier('ANDINA DEL VALLE X6 PET 1750');
+    expect(result.despues).toBe(6);
+    expect(result.multiplier).toBe(6);
+  });
+
+  it('detecta patrón 12X6 (packs por caja)', () => {
+    const result = detectCocaColaMultiplier('COCA COLA 12X6 REF 350CC');
+    expect(result.antes).toBe(12);
+    expect(result.despues).toBe(6);
+    expect(result.multiplier).toBe(72);
+  });
+
+  it('detecta patrón 2X4', () => {
+    const result = detectCocaColaMultiplier('FANTA 2X4 REF 500CC');
+    expect(result.antes).toBe(2);
+    expect(result.despues).toBe(4);
+    expect(result.multiplier).toBe(8);
+  });
+
+  it('retorna 1 si no hay patrón', () => {
+    const result = detectCocaColaMultiplier('COCA COLA 1.5LT');
+    expect(result.multiplier).toBe(1);
   });
 });
 

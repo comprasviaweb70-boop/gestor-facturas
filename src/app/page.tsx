@@ -161,9 +161,8 @@ export default function Home() {
           const flete = Number(item.fleteTotal) || 0;
           const cantidad = Number(item.cantidad) || 1;
 
-          // PCU excluye flete según la regla de costeo del proyecto.
-          // Flete se mantiene en la columna "Flete" y en el "Total Línea".
-          const pcu = calculatePCU(subtotalNeto, imptoAdic, cantidad);
+          // PCU incluye flete según la regla de costeo del proyecto.
+          const pcu = calculatePCU(subtotalNeto, imptoAdic, cantidad, flete);
           const totalItem = subtotalNeto + imptoAdic + flete;
           const pvu = calculatePVU(pcu, margin);
           

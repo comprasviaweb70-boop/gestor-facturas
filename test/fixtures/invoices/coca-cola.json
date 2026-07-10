@@ -1,0 +1,82 @@
+{
+  "provider": "Coca-Cola Embonor",
+  "rutEmisor": "93281000K",
+  "razonSocial": "Coca Cola Embonor S.A.",
+  "sourceFormat": "image",
+  "rawData": {
+    "rutEmisor": "93.281.000-K",
+    "folio": "104120443",
+    "razonSocial": "Coca Cola Embonor S.A.",
+    "items": [
+      {
+        "nombre": "COCA COLA X06 REF 1500 CC",
+        "codigo": "0128",
+        "cantidad": "1/0",
+        "precioUnitario": 4299,
+        "precioBrutoUnitario": 0,
+        "subtotalNeto": 4299,
+        "impuestosAdicionales": 774,
+        "fleteTotal": 1460
+      },
+      {
+        "nombre": "COCA COLA X06 REF 2500 CC",
+        "codigo": "0121",
+        "cantidad": "2/0",
+        "precioUnitario": 6209,
+        "precioBrutoUnitario": 0,
+        "subtotalNeto": 12418,
+        "impuestosAdicionales": 3053,
+        "fleteTotal": 3650
+      },
+      {
+        "nombre": "ANDINA DEL VALLE NARANJA X06 PET 1750",
+        "codigo": "7119",
+        "cantidad": "1/0",
+        "precioUnitario": 7363,
+        "precioBrutoUnitario": 0,
+        "subtotalNeto": 6259,
+        "impuestosAdicionales": 1414,
+        "fleteTotal": 1183
+      }
+    ]
+  },
+  "expectedItems": [
+    {
+      "nombre": "COCA COLA X06 REF 1500 CC",
+      "codigo": "0128",
+      "cantidad": 6,
+      "precioUnitario": 716.5,
+      "precioBrutoUnitario": 0,
+      "subtotalNeto": 4299,
+      "impuestosAdicionales": 774,
+      "fleteTotal": 1460,
+      "unidadesPorPack": 6,
+      "cantidadReal": 6
+    },
+    {
+      "nombre": "COCA COLA X06 REF 2500 CC",
+      "codigo": "0121",
+      "cantidad": 12,
+      "precioUnitario": 1034.83333333333,
+      "precioBrutoUnitario": 0,
+      "subtotalNeto": 12418,
+      "impuestosAdicionales": 3053,
+      "fleteTotal": 3650,
+      "unidadesPorPack": 6,
+      "cantidadReal": 12
+    },
+    {
+      "nombre": "ANDINA DEL VALLE NARANJA X06 PET 1750",
+      "codigo": "7119",
+      "cantidad": 6,
+      "precioUnitario": 1043.16666666667,
+      "precioBrutoUnitario": 0,
+      "subtotalNeto": 6259,
+      "impuestosAdicionales": 1414,
+      "fleteTotal": 1183,
+      "unidadesPorPack": 6,
+      "cantidadReal": 6
+    }
+  ],
+  "notes": "Coca-Cola: cantidad visual 'n/0' toma n como cajas; multiplicador nXn en descripción; flete y adicional extraídos directo; IVA ignorado."
+}

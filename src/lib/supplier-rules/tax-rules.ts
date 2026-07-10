@@ -46,6 +46,7 @@ export const generalTaxRule: SupplierRule = {
   stage: 'tax',
   apply: (ctx) => {
     if (matchesProvider(ctx, '78753810', 'HIPER')) return ctx;
+    if (matchesProvider(ctx, '93281000', 'COCA')) return ctx;
 
     ctx.items.forEach((item) => {
       if (!item.impuestosAdicionales || item.impuestosAdicionales === 0) {

@@ -1,9 +1,10 @@
 export function calculatePCU(
   subtotalNeto: number,
   impuestosAdicionales: number,
-  cantidad: number
+  cantidad: number,
+  fleteTotal: number = 0
 ): number {
-  return (subtotalNeto + impuestosAdicionales) / (cantidad || 1);
+  return (subtotalNeto + impuestosAdicionales + fleteTotal) / (cantidad || 1);
 }
 
 export function calculatePVU(

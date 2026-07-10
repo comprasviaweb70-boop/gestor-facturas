@@ -148,6 +148,28 @@ export function detectBatMultiplier(nombreProducto: string): number {
   return 1;
 }
 
+export interface CocaColaMultiplier {
+  antes: number;
+  despues: number;
+  multiplier: number;
+}
+
+/**
+ * Detecta multiplicador específico para Coca-Cola Embonor (RUT: 93.281.000-K).
+ * Soporta patrones como X06, X6, 12X6, 2X4.
+ * Retorna { antes, despues, multiplier } donde multiplier = antes * despues.
+ */
+export function detectCocaColaMultiplier(nombreProducto: string): CocaColaMultiplier {
+  const nombreUpper = (nombreProducto || '').toUpperCase();
+  const match = nombreUpper.match(/(\d+)?\s*X\s*0*(\d+)/);
+  if (match) {
+    const antes = match[1] ? parseInt(match[1], 10) : 1;
+    const despues = parseInt(match[2], 10);
+    return { antes, despues, multiplier: antes * despues };
+  }
+  return { antes: 1, despues: 1, multiplier: 1 };
+}
+
 /**
  * Detecta el grado alcohólico en un nombre de producto (para DIMAK).
  * Retorna la tasa de impuesto correspondiente (0.205 para <20°, 0.315 para >=20°).

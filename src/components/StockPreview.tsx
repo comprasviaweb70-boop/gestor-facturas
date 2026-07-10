@@ -106,8 +106,8 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
         const flete = Number(item.fleteTotal) || 0;
         const qty = Number(item.cantidad);
         
-        // El PCU debe excluir el flete según la nueva regla de costeo
-        const pcu = calculatePCU(subtotalNeto, imptoAdic, qty);
+        // El PCU incluye flete según el modelo de costeo actual
+        const pcu = calculatePCU(subtotalNeto, imptoAdic, qty, flete);
 
         let status: 'ok' | 'missing_sku' | 'zero_qty' | 'inactive_in_bsale' = 'ok';
         if (!sku) status = 'missing_sku';

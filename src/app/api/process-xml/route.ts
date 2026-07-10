@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { extractWithClaude } from '@/lib/extractors/claude-extractor';
 import { extractWithGemini } from '@/lib/extractors/gemini-extractor';
+import { getProviderImagePrompt } from '@/lib/extractors/provider-prompts';
+import { getProviderByRut } from '@/lib/providers';
 import { runPipeline } from '@/lib/supplier-rules';
 import { processEquivalences, fetchTaxRates } from '@/lib/equivalence-service';
 import { normalizeRut } from '@/lib/invoice-utils';
@@ -32,15 +34,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Tipo de archivo no soportado.' }, { status: 400 });
     }
 
-    // 1. Extracción con Claude (fallback a Gemini si falla)
+    // 1. Determinar prompt específico de proveedor para imagen/PDF
+    const provider = fileBase64 ? getProviderByRut(knownRut) : undefined;
+    const docPromptOverride = fileBase64 ? getProviderImagePrompt(provider?.documentPromptKey) : undefined;
+
+    // 2. Extracción con Claude (fallback a Gemini si falla)
     let extractionResult;
     let extractorUsed: 'claude' | 'gemini' = 'claude';
     try {
-      extractionResult = await extractWithClaude({ xmlContent, fileBase64, fileType });
+      extractionResult = await extractWithClaude({ xmlContent, fileBase64, fileType, docPromptOverride });
     } catch (claudeErr: any) {
       console.warn('Claude falló, intentando con Gemini como fallback:', claudeErr.message);
       try {
-        extractionResult = await extractWithGemini({ xmlContent, fileBase64, fileType });
+        extractionResult = await extractWithGemini({ xmlContent, fileBase64, fileType, docPromptOverride });
         extractorUsed = 'gemini';
       } catch (geminiErr: any) {
         const preview = (geminiErr.message || '').substring(0, 300);
@@ -52,25 +58,25 @@ export async function POST(request: Request) {
 
     const { data, sourceFormat } = extractionResult;
 
-    // 2. Fallback a datos conocidos
+    // 3. Fallback a datos conocidos
     if (!data.rutEmisor && knownRut) data.rutEmisor = knownRut;
     if (!data.razonSocial && knownName) data.razonSocial = knownName;
     if (knownName && !data.razonSocial) data.razonSocial = knownName;
 
     const rutEmisor = normalizeRut(data.rutEmisor || '');
 
-    // 3. Obtener tax rates de Supabase
+    // 4. Obtener tax rates de Supabase
     const taxRates = await fetchTaxRates();
 
-    // 4. Ejecutar pipeline de reglas
+    // 5. Ejecutar pipeline de reglas
     const invoiceData = runPipeline(data, taxRates, sourceFormat, extractorUsed);
 
-    // 5. Procesar equivalencias SKU
+    // 6. Procesar equivalencias SKU
     if (invoiceData.items && invoiceData.items.length > 0) {
       await processEquivalences(invoiceData.items, rutEmisor);
     }
 
-    // 6. Respuesta compatible con frontend existente
+    // 7. Respuesta compatible con frontend existente
     // Devolver rutEmisor sin normalizar para compatibilidad con equivalencias en Supabase
     return NextResponse.json({
       ...data,

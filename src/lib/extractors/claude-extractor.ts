@@ -73,8 +73,9 @@ export async function extractWithClaude(params: {
   xmlContent?: string;
   fileBase64?: string;
   fileType?: string;
+  docPromptOverride?: string;
 }): Promise<ClaudeExtractionResult> {
-  const { xmlContent, fileBase64, fileType } = params;
+  const { xmlContent, fileBase64, fileType, docPromptOverride } = params;
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -83,7 +84,9 @@ export async function extractWithClaude(params: {
 
   const anthropic = new Anthropic({ apiKey });
 
-  const systemPrompt = xmlContent ? XML_SYSTEM_PROMPT : DOCUMENT_SYSTEM_PROMPT;
+  const systemPrompt = xmlContent
+    ? XML_SYSTEM_PROMPT
+    : (docPromptOverride || DOCUMENT_SYSTEM_PROMPT);
   const sourceFormat: 'xml' | 'pdf' | 'image' = xmlContent ? 'xml' : (fileType === 'application/pdf' ? 'pdf' : 'image');
 
   let userContent: any;

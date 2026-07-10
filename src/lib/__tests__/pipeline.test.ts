@@ -65,6 +65,7 @@ describe('Pipeline de reglas por proveedor — Fixtures de regresión', () => {
     'zapata.json',
     'vct.json',
     'general.json',
+    'coca-cola.json',
   ];
 
   fixtures.forEach((fixtureName) => {

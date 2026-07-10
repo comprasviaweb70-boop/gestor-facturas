@@ -70,8 +70,9 @@ export async function extractWithGemini(params: {
   xmlContent?: string;
   fileBase64?: string;
   fileType?: string;
+  docPromptOverride?: string;
 }): Promise<GeminiExtractionResult> {
-  const { xmlContent, fileBase64, fileType } = params;
+  const { xmlContent, fileBase64, fileType, docPromptOverride } = params;
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -81,7 +82,9 @@ export async function extractWithGemini(params: {
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
-  const systemPrompt = xmlContent ? XML_SYSTEM_PROMPT : DOCUMENT_SYSTEM_PROMPT;
+  const systemPrompt = xmlContent
+    ? XML_SYSTEM_PROMPT
+    : (docPromptOverride || DOCUMENT_SYSTEM_PROMPT);
   const sourceFormat: 'xml' | 'pdf' | 'image' = xmlContent ? 'xml' : (fileType === 'application/pdf' ? 'pdf' : 'image');
 
   let result: any;
