@@ -49,8 +49,8 @@ Formato requerido:
       "cantidad": 1,
       "precioUnitario": 0,
       "precioBrutoUnitario": 0,
-      "subtotalNeto": "Valor de la columna 'Valor Unit. Neto c/Descto' multiplicado por la columna Cant. (sin puntos ni comas)",
-      "fleteTotal": "Valor de la columna 'Serv. Log.' (diferencia entre 'Total neto C/Serv. Logístico' y 'Valor Unit. Neto c/Descto')",
+      "subtotalNeto": "Valor de la columna Valor Unit. Neto c/Descto multiplicado por la columna Cant. (sin puntos ni comas)",
+      "fleteTotal": "Valor de la columna Serv. Log. (diferencia entre Total neto C/Serv. Logístico y Valor Unit. Neto c/Descto)",
       "impuestosAdicionales": "Valor de la columna 'Total Imp. Adic.' (IABA). Si está vacío, usa 0.",
       "tasaImpuestoAdicional": "Tasa del impuesto adicional (columna Tasa): 20,50 -> 0.205, 31,50 -> 0.315"
     }
@@ -59,15 +59,15 @@ Formato requerido:
 
 Reglas críticas:
 - Lee TODOS los productos de la tabla. Ignora líneas de totales, subtotales, garantía o depósito de envases.
-- `unidad`: extrae el valor exacto de la columna `Un.` (puede ser CAJ o BOT). Si no la ves, usa "CAJ".
-- `cantidad`: es un número entero (sin puntos ni comas). Si viene con coma decimal, conviértela a punto.
-- `subtotalNeto`: únicamente el neto del producto (`Valor Unit. Neto c/Descto` × `Cant.`), sin incluir el flete.
-- `fleteTotal`: es la columna `Serv. Log.` de la línea. Si la factura no la trae por línea, calcúlala como `Total neto C/Serv. Logístico` − `subtotalNeto`. El flete total del pie se suma si no está en líneas.
-- `impuestosAdicionales`: usa el valor de `Total Imp. Adic.` por línea. Si no existe, calcúlalo como `subtotalNeto × tasaImpuestoAdicional`.
-- `tasaImpuestoAdicional`: decimal según columna `Tasa Impto. Adic.`: 20,50 -> 0.205, 31,50 -> 0.315. Si está vacía, usa 0.
-- No uses el valor de IVA (19%) para `impuestosAdicionales`.
-- No uses `Precio Unit. Bruto Final`.
-- `codigo`: si no hay código visible, usa "S/C".
+- unidad: extrae el valor exacto de la columna Un. (puede ser CAJ o BOT). Si no la ves, usa "CAJ".
+- cantidad: es un número entero (sin puntos ni comas). Si viene con coma decimal, conviértela a punto.
+- subtotalNeto: únicamente el neto del producto (Valor Unit. Neto c/Descto × Cant.), sin incluir el flete.
+- fleteTotal: es la columna Serv. Log. de la línea. Si la factura no la trae por línea, calcúlala como Total neto C/Serv. Logístico − subtotalNeto. El flete total del pie se suma si no está en líneas.
+- impuestosAdicionales: usa el valor de Total Imp. Adic. por línea. Si no existe, calcúlalo como subtotalNeto × tasaImpuestoAdicional.
+- tasaImpuestoAdicional: decimal según columna Tasa Impto. Adic.: 20,50 -> 0.205, 31,50 -> 0.315. Si está vacía, usa 0.
+- No uses el valor de IVA (19%) para impuestosAdicionales.
+- No uses Precio Unit. Bruto Final.
+- codigo: si no hay código visible, usa "S/C".
 - Todos los montos deben ser números enteros sin puntos ni comas; en Chile el punto es separador de miles.
 - Responde ÚNICAMENTE con el objeto JSON válido.`,
 };
