@@ -1,46 +1,170 @@
 {
   "provider": "VCT",
   "rutEmisor": "850379009",
-  "razonSocial": "VCT",
-  "sourceFormat": "xml",
+  "razonSocial": "COMERCIAL PEUMO LTDA.",
+  "sourceFormat": "pdf",
   "rawData": {
     "rutEmisor": "850379009",
-    "folio": "6006",
-    "razonSocial": "VCT",
+    "folio": "7471476",
+    "razonSocial": "COMERCIAL PEUMO LTDA.",
     "items": [
       {
-        "nombre": "CERVEZA NEGRA 500ML",
-        "codigo": "NEGRA500",
-        "cantidad": 12,
-        "precioUnitario": 700,
+        "nombre": "VINO EXPORT.SELEC.MERLOT 6BOT",
+        "codigo": "10218153",
+        "unidad": "CAJ",
+        "cantidad": 1,
+        "precioUnitario": 0,
         "precioBrutoUnitario": 0,
-        "subtotalNeto": 8400,
+        "subtotalNeto": 12155,
         "impuestosAdicionales": 0,
-        "fleteTotal": 500
+        "fleteTotal": 2431,
+        "tasaImpuestoAdicional": 0.205
       },
       {
-        "nombre": "SERVICIO LOGISTICO",
-        "codigo": "SERVLOG",
+        "nombre": "VINO EXPORTAC.CAB.SAUV.(SELC) 6BOT",
+        "codigo": "10218154",
+        "unidad": "CAJ",
         "cantidad": 1,
-        "precioUnitario": 1000,
+        "precioUnitario": 0,
         "precioBrutoUnitario": 0,
-        "subtotalNeto": 1000,
+        "subtotalNeto": 12155,
         "impuestosAdicionales": 0,
-        "fleteTotal": 0
+        "fleteTotal": 2431,
+        "tasaImpuestoAdicional": 0.205
+      },
+      {
+        "nombre": "VINO EXPORTACION SELECTO BLANCO 6BOT",
+        "codigo": "1922029E",
+        "unidad": "CAJ",
+        "cantidad": 1,
+        "precioUnitario": 0,
+        "precioBrutoUnitario": 0,
+        "subtotalNeto": 12155,
+        "impuestosAdicionales": 0,
+        "fleteTotal": 2431,
+        "tasaImpuestoAdicional": 0.205
+      },
+      {
+        "nombre": "VINO TETRA EXPORTBLANCO 06TPK",
+        "codigo": "10209581",
+        "unidad": "CAJ",
+        "cantidad": 1,
+        "precioUnitario": 0,
+        "precioBrutoUnitario": 0,
+        "subtotalNeto": 10471,
+        "impuestosAdicionales": 0,
+        "fleteTotal": 3241,
+        "tasaImpuestoAdicional": 0.205
+      },
+      {
+        "nombre": "VINO TETRA EXPORT.TINTO 06TPK",
+        "codigo": "10209584",
+        "unidad": "CAJ",
+        "cantidad": 1,
+        "precioUnitario": 0,
+        "precioBrutoUnitario": 0,
+        "subtotalNeto": 10471,
+        "impuestosAdicionales": 0,
+        "fleteTotal": 3241,
+        "tasaImpuestoAdicional": 0.205
+      },
+      {
+        "nombre": "VINO C.SUR BIC.CAB.SAUV.12BOT 2023",
+        "codigo": "1021593E",
+        "unidad": "BOT",
+        "cantidad": 2,
+        "precioUnitario": 0,
+        "precioBrutoUnitario": 0,
+        "subtotalNeto": 5421,
+        "impuestosAdicionales": 0,
+        "fleteTotal": 608,
+        "tasaImpuestoAdicional": 0.205
+      },
+      {
+        "nombre": "VINO C.SUR BIC.CARMENERE 12BOT 2023",
+        "codigo": "10217734",
+        "unidad": "BOT",
+        "cantidad": 2,
+        "precioUnitario": 0,
+        "precioBrutoUnitario": 0,
+        "subtotalNeto": 5421,
+        "impuestosAdicionales": 0,
+        "fleteTotal": 608,
+        "tasaImpuestoAdicional": 0.205
       }
     ]
   },
   "expectedItems": [
     {
-      "nombre": "CERVEZA NEGRA 500ML",
-      "codigo": "NEGRA500",
-      "cantidad": 12,
+      "nombre": "VINO EXPORT.SELEC.MERLOT 6BOT",
+      "codigo": "10218153",
+      "cantidad": 6,
       "precioBrutoUnitario": 0,
-      "impuestosAdicionales": 1722,
-      "fleteTotal": 1500,
-      "unidadesPorPack": 1,
-      "cantidadReal": 12
+      "impuestosAdicionales": 2492,
+      "fleteTotal": 2431,
+      "unidadesPorPack": 6,
+      "cantidadReal": 6
+    },
+    {
+      "nombre": "VINO EXPORTAC.CAB.SAUV.(SELC) 6BOT",
+      "codigo": "10218154",
+      "cantidad": 6,
+      "precioBrutoUnitario": 0,
+      "impuestosAdicionales": 2492,
+      "fleteTotal": 2431,
+      "unidadesPorPack": 6,
+      "cantidadReal": 6
+    },
+    {
+      "nombre": "VINO EXPORTACION SELECTO BLANCO 6BOT",
+      "codigo": "1922029E",
+      "cantidad": 6,
+      "precioBrutoUnitario": 0,
+      "impuestosAdicionales": 2492,
+      "fleteTotal": 2431,
+      "unidadesPorPack": 6,
+      "cantidadReal": 6
+    },
+    {
+      "nombre": "VINO TETRA EXPORTBLANCO 06TPK",
+      "codigo": "10209581",
+      "cantidad": 6,
+      "precioBrutoUnitario": 0,
+      "impuestosAdicionales": 2147,
+      "fleteTotal": 3241,
+      "unidadesPorPack": 6,
+      "cantidadReal": 6
+    },
+    {
+      "nombre": "VINO TETRA EXPORT.TINTO 06TPK",
+      "codigo": "10209584",
+      "cantidad": 6,
+      "precioBrutoUnitario": 0,
+      "impuestosAdicionales": 2147,
+      "fleteTotal": 3241,
+      "unidadesPorPack": 6,
+      "cantidadReal": 6
+    },
+    {
+      "nombre": "VINO C.SUR BIC.CAB.SAUV.12BOT 2023",
+      "codigo": "1021593E",
+      "cantidad": 2,
+      "precioBrutoUnitario": 0,
+      "impuestosAdicionales": 1111,
+      "fleteTotal": 608,
+      "unidadesPorPack": 12,
+      "cantidadReal": 2
+    },
+    {
+      "nombre": "VINO C.SUR BIC.CARMENERE 12BOT 2023",
+      "codigo": "10217734",
+      "cantidad": 2,
+      "precioBrutoUnitario": 0,
+      "impuestosAdicionales": 1111,
+      "fleteTotal": 608,
+      "unidadesPorPack": 12,
+      "cantidadReal": 2
     }
   ],
-  "notes": "VCT: subtotalNeto recalculado=precioUnitario*cantidad. Serv log removido, flete distribuido. Impuestos recalculados. fleteTotal=500+1000=1500. ILA 20.5% sobre 8400=1722."
+  "notes": "VCT folio 7471476 (Comercial Peumo Ltda, RUT 85.037.900-9). PDF con 7 productos. CAJ multiplican por packSize (6BOT=6, 06TPK=6); BOT usan Cant directo (2). IABA 20.5% sobre neto sin flete. Flete (Serv.Log) por linea. Totales PDF: SubTotal Neto=68249, IABA=13991, S.Log=14991, Total Neto=83240."
 }

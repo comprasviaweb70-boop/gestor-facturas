@@ -1,5 +1,5 @@
 import { PipelineContext, SupplierRule } from '../types/invoice';
-import { detectAlcoholTaxRate, distributeFreight } from '../invoice-utils';
+import { detectAlcoholTaxRate, detectVctPackSize, distributeFreight } from '../invoice-utils';
 import { matchesProvider } from './multiplier-rules';
 
 export const madCharliesPostProcessRule: SupplierRule = {
@@ -58,16 +58,7 @@ export const vctPostProcessRule: SupplierRule = {
   apply: (ctx) => {
     console.log('VCT: Aplicando reglas especiales');
 
-    ctx.items.forEach((item) => {
-      const nombre = (item.nombre || '').toUpperCase();
-      if (!nombre.includes('SERV') || !nombre.includes('LOG')) {
-        if (item.precioUnitario && item.cantidad) {
-          item.subtotalNeto = item.precioUnitario * item.cantidad;
-          console.log(`VCT: ${item.nombre} -> SubtotalNeto recalculado: ${item.precioUnitario} × ${item.cantidad} = ${item.subtotalNeto}`);
-        }
-      }
-    });
-
+    // 1. Detectar y remover ítems de servicio logístico, acumulando su valor como flete adicional.
     const servLogIndices: number[] = [];
     let extraServLog = 0;
 
@@ -86,9 +77,33 @@ export const vctPostProcessRule: SupplierRule = {
       for (let i = servLogIndices.length - 1; i >= 0; i--) {
         ctx.items.splice(servLogIndices[i], 1);
       }
+    }
 
+    // 2. Calcular unidades reales: CAJ multiplica por packSize; BOT usa Cant directamente.
+    ctx.items.forEach((item) => {
+      const unidad = (item.unidad || 'CAJ').toUpperCase();
+      const packSize = detectVctPackSize(item.nombre);
+      const originalCantidad = item.cantidad || 0;
+
+      const unidades = unidad === 'CAJ' && packSize > 1
+        ? originalCantidad * packSize
+        : originalCantidad;
+
+      item.unidadesPorPack = packSize;
+      item.cantidadReal = unidades;
+      item.cantidad = unidades;
+
+      if (item.subtotalNeto && item.subtotalNeto > 0 && unidades > 0) {
+        item.precioUnitario = item.subtotalNeto / unidades;
+      }
+
+      console.log(`VCT: ${item.nombre} -> Unidad: ${unidad}, PackSize: ${packSize}, ${originalCantidad} -> ${unidades} unidades`);
+    });
+
+    // 3. Distribuir flete adicional proveniente de ítems de servicio logístico.
+    if (extraServLog > 0) {
       const totalUnits = ctx.items.reduce((acc, item) => acc + (Number(item.cantidad) || 0), 0);
-      if (totalUnits > 0 && extraServLog > 0) {
+      if (totalUnits > 0) {
         const fleteExtraUnitario = extraServLog / totalUnits;
         ctx.items.forEach((item) => {
           item.fleteTotal = (item.fleteTotal || 0) + (fleteExtraUnitario * (item.cantidad || 1));
@@ -96,23 +111,28 @@ export const vctPostProcessRule: SupplierRule = {
       }
     }
 
+    // 4. Aplicar impuesto adicional SOBRE el neto del producto (sin flete).
     ctx.items.forEach((item) => {
-      const nombreUpper = (item.nombre || '').toUpperCase();
-      let taxApplied = false;
-
-      for (const rate of ctx.taxRates) {
-        const keyword = (rate.product_type || '').trim().toUpperCase();
-        if (keyword && nombreUpper.includes(keyword)) {
-          const porcentaje = rate.tax_percentage / 100;
-          item.impuestosAdicionales = Math.round((item.subtotalNeto || 0) * porcentaje);
-          console.log(`VCT: Impuesto ${rate.product_type} (${rate.tax_percentage}%) aplicado a ${item.nombre}: ${item.impuestosAdicionales}`);
-          taxApplied = true;
-          break;
+      const tasa = item.tasaImpuestoAdicional;
+      if (typeof tasa === 'number' && tasa > 0) {
+        item.impuestosAdicionales = Math.round((item.subtotalNeto || 0) * tasa);
+        console.log(`VCT: Impuesto ${tasa * 100}% aplicado a ${item.nombre}: ${item.impuestosAdicionales}`);
+      } else {
+        const nombreUpper = (item.nombre || '').toUpperCase();
+        let taxApplied = false;
+        for (const rate of ctx.taxRates) {
+          const keyword = (rate.product_type || '').trim().toUpperCase();
+          if (keyword && nombreUpper.includes(keyword)) {
+            const porcentaje = rate.tax_percentage / 100;
+            item.impuestosAdicionales = Math.round((item.subtotalNeto || 0) * porcentaje);
+            console.log(`VCT: Impuesto ${rate.product_type} (${rate.tax_percentage}%) aplicado a ${item.nombre}: ${item.impuestosAdicionales}`);
+            taxApplied = true;
+            break;
+          }
         }
-      }
-
-      if (!taxApplied) {
-        item.impuestosAdicionales = 0;
+        if (!taxApplied) {
+          item.impuestosAdicionales = 0;
+        }
       }
     });
 

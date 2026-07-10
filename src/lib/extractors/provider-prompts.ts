@@ -1,6 +1,6 @@
 import { getProviderByKey } from '@/lib/providers';
 
-type ProviderPromptKey = 'coca-cola-embonor';
+type ProviderPromptKey = 'coca-cola-embonor' | 'vct';
 
 const PROVIDER_IMAGE_PROMPTS: Record<ProviderPromptKey, string> = {
   'coca-cola-embonor': `Actúa como un experto en facturación electrónica chilena. Analiza esta factura de Coca-Cola Embonor y extrae exclusivamente los datos en formato JSON.
@@ -33,6 +33,42 @@ Reglas críticas:
 - impuestosAdicionales: usa ÚNICAMENTE el valor de la columna "Adicional" (I.A.B.A.). Si esa celda está vacía o en blanco, el valor debe ser exactamente 0. NUNCA uses el valor de la columna "I.V.A." ni ninguna otra columna como reemplazo.
 - fleteTotal: usa el valor de "Flete Total".
 - codigo: si no hay código, usa "S/C".
+- Responde ÚNICAMENTE con el objeto JSON válido.`,
+  'vct': `Actúa como un experto en facturación electrónica chilena. Analiza esta factura de VCT (Comercial Peumo Ltda., R.U.T. 85.037.900-9) y extrae exclusivamente los datos en formato JSON.
+
+Formato requerido:
+{
+  "rutEmisor": "R.U.T. del emisor",
+  "folio": "Número del folio ubicado al lado del texto 'FACTURA ELECTRONICA' (ej: 7471476)",
+  "razonSocial": "Razón social del emisor",
+  "items": [
+    {
+      "nombre": "Descripción del producto (conservar el sufijo de pack: 6BOT, 06TPK, 12BOT, etc.)",
+      "codigo": "Código del producto (columna Código)",
+      "unidad": "CAJ o BOT (columna Un.)",
+      "cantidad": 1,
+      "precioUnitario": 0,
+      "precioBrutoUnitario": 0,
+      "subtotalNeto": "Valor de la columna 'Valor Unit. Neto c/Descto' multiplicado por la columna Cant. (sin puntos ni comas)",
+      "fleteTotal": "Valor de la columna 'Serv. Log.' (diferencia entre 'Total neto C/Serv. Logístico' y 'Valor Unit. Neto c/Descto')",
+      "impuestosAdicionales": "Valor de la columna 'Total Imp. Adic.' (IABA). Si está vacío, usa 0.",
+      "tasaImpuestoAdicional": "Tasa del impuesto adicional (columna Tasa): 20,50 -> 0.205, 31,50 -> 0.315"
+    }
+  ]
+}
+
+Reglas críticas:
+- Lee TODOS los productos de la tabla. Ignora líneas de totales, subtotales, garantía o depósito de envases.
+- `unidad`: extrae el valor exacto de la columna `Un.` (puede ser CAJ o BOT). Si no la ves, usa "CAJ".
+- `cantidad`: es un número entero (sin puntos ni comas). Si viene con coma decimal, conviértela a punto.
+- `subtotalNeto`: únicamente el neto del producto (`Valor Unit. Neto c/Descto` × `Cant.`), sin incluir el flete.
+- `fleteTotal`: es la columna `Serv. Log.` de la línea. Si la factura no la trae por línea, calcúlala como `Total neto C/Serv. Logístico` − `subtotalNeto`. El flete total del pie se suma si no está en líneas.
+- `impuestosAdicionales`: usa el valor de `Total Imp. Adic.` por línea. Si no existe, calcúlalo como `subtotalNeto × tasaImpuestoAdicional`.
+- `tasaImpuestoAdicional`: decimal según columna `Tasa Impto. Adic.`: 20,50 -> 0.205, 31,50 -> 0.315. Si está vacía, usa 0.
+- No uses el valor de IVA (19%) para `impuestosAdicionales`.
+- No uses `Precio Unit. Bruto Final`.
+- `codigo`: si no hay código visible, usa "S/C".
+- Todos los montos deben ser números enteros sin puntos ni comas; en Chile el punto es separador de miles.
 - Responde ÚNICAMENTE con el objeto JSON válido.`,
 };
 

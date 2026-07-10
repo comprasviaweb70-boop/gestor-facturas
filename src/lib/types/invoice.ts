@@ -8,6 +8,7 @@ export interface InvoiceItem {
   impuestosAdicionales: number;
   fleteTotal: number;
   tasaImpuestoAdicional?: number;
+  unidad?: string;
   unidadesPorPack?: number;
   cantidadReal?: number;
   internal_sku?: string;

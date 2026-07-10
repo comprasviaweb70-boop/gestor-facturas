@@ -207,6 +207,20 @@ export function detectCocaColaMultiplier(nombreProducto: string): CocaColaMultip
 }
 
 /**
+ * Detecta el tamaño del pack en nombres de productos de VCT (Comercial Peumo).
+ * Busca patrones como 6BOT, 06TPK, 12BOT y retorna el número entero.
+ * Si no se detecta patrón, retorna 1.
+ */
+export function detectVctPackSize(nombreProducto: string): number {
+  const nombreUpper = (nombreProducto || '').toUpperCase();
+  const match = nombreUpper.match(/(\d+)\s*(?:BOT|TPK)\b/);
+  if (match) {
+    return parseInt(match[1], 10);
+  }
+  return 1;
+}
+
+/**
  * Detecta el grado alcohólico en un nombre de producto (para DIMAK).
  * Retorna la tasa de impuesto correspondiente (0.205 para <20°, 0.315 para >=20°).
  * Retorna 0 si no se detecta grado alcohólico.

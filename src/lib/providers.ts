@@ -16,6 +16,13 @@ export const KNOWN_IMAGE_PROVIDERS: KnownProvider[] = [
     rutNormalized: '93281000K',
     documentPromptKey: 'coca-cola-embonor',
   },
+  {
+    id: 'vct',
+    name: 'VCT / Comercial Peumo Ltda.',
+    rut: '85.037.900-9',
+    rutNormalized: '850379009',
+    documentPromptKey: 'vct',
+  },
 ];
 
 export function getProviderByRut(rut?: string): KnownProvider | undefined {
