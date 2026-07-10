@@ -75,20 +75,20 @@ describe('Pipeline de reglas por proveedor — Fixtures de regresión', () => {
     describe(`${provider}`, () => {
       it('preserva metadatos de la factura', () => {
         const data = deepClone(fixture.rawData);
-        const result = runPipeline(data, MOCK_TAX_RATES);
+        const result = runPipeline(data, MOCK_TAX_RATES, fixture.sourceFormat as 'xml' | 'pdf' | 'image');
         expect(result.folio).toBe(fixture.rawData.folio);
         expect(result.razonSocial).toBe(fixture.rawData.razonSocial);
       });
 
       it('produce el número correcto de ítems', () => {
         const data = deepClone(fixture.rawData);
-        const result = runPipeline(data, MOCK_TAX_RATES);
+        const result = runPipeline(data, MOCK_TAX_RATES, fixture.sourceFormat as 'xml' | 'pdf' | 'image');
         expect(result.items.length).toBe(fixture.expectedItems.length);
       });
 
       it('transforma cada ítem correctamente', () => {
         const data = deepClone(fixture.rawData);
-        const result = runPipeline(data, MOCK_TAX_RATES);
+        const result = runPipeline(data, MOCK_TAX_RATES, fixture.sourceFormat as 'xml' | 'pdf' | 'image');
         fixture.expectedItems.forEach((expected: ExpectedItem, idx: number) => {
           expect(idx < result.items.length, `ítem[${idx}] existe`).toBe(true);
           compareItem(result.items[idx], expected, idx);

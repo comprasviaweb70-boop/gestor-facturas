@@ -1,20 +1,22 @@
 import { PipelineContext, SupplierRule, InvoiceData, InvoiceItem, TaxRate } from '../types/invoice';
-import { normalizeRut, parseSpanishNumber } from '../invoice-utils';
+import { normalizeRut, parseSpanishNumber, parseChileanImageAmount } from '../invoice-utils';
 import { multiplierRules, matchesProvider } from './multiplier-rules';
 import { taxRules } from './tax-rules';
 import { postProcessRules } from './post-process-rules';
 
-function normalizeItems(items: any[]): InvoiceItem[] {
+function normalizeItems(items: any[], sourceFormat: 'xml' | 'pdf' | 'image'): InvoiceItem[] {
+  const parseAmount = sourceFormat === 'xml' ? parseSpanishNumber : parseChileanImageAmount;
+
   return items.map((item: any) => {
     if (typeof item.cantidad === 'string') {
       item.cantidad = parseFloat(item.cantidad.replace(/,/g, '.'));
     }
     item.cantidad = Number(item.cantidad) || 0;
-    item.precioUnitario = parseSpanishNumber(item.precioUnitario);
-    item.precioBrutoUnitario = parseSpanishNumber(item.precioBrutoUnitario);
-    item.subtotalNeto = parseSpanishNumber(item.subtotalNeto);
-    item.impuestosAdicionales = parseSpanishNumber(item.impuestosAdicionales);
-    item.fleteTotal = item.fleteTotal || 0;
+    item.precioUnitario = parseAmount(item.precioUnitario);
+    item.precioBrutoUnitario = parseAmount(item.precioBrutoUnitario);
+    item.subtotalNeto = parseAmount(item.subtotalNeto);
+    item.impuestosAdicionales = parseAmount(item.impuestosAdicionales);
+    item.fleteTotal = parseAmount(item.fleteTotal);
     return item as InvoiceItem;
   });
 }
@@ -39,7 +41,7 @@ export function runPipeline(
 ): InvoiceData {
   const rutEmisor = normalizeRut(rawData.rutEmisor || '');
   const razonSocial = rawData.razonSocial || '';
-  const items = rawData.items && Array.isArray(rawData.items) ? normalizeItems([...rawData.items]) : [];
+  const items = rawData.items && Array.isArray(rawData.items) ? normalizeItems([...rawData.items], sourceFormat) : [];
 
   let ctx: PipelineContext = {
     rutEmisor,

@@ -62,6 +62,42 @@ export function parseSpanishNumber(val: string | number | null | undefined): num
 }
 
 /**
+ * Parsea montos extraídos por OCR/IA desde imágenes o PDFs de facturas chilenas.
+ * En este contexto el punto es siempre separador de miles y la coma es separador decimal.
+ * Aplica únicamente a la vía imagen/PDF; el XML ya entrega los montos bien definidos.
+ */
+export function parseChileanImageAmount(val: string | number | null | undefined): number {
+  if (typeof val === 'number') {
+    return isNaN(val) ? 0 : val;
+  }
+  if (!val || typeof val !== 'string') return 0;
+
+  let str = val.trim();
+  if (str.includes('.') && str.includes(',')) {
+    // 1.234,56 -> 1234.56
+    str = str.replace(/\./g, '').replace(/,/g, '.');
+  } else if (str.includes(',')) {
+    // 716,50 -> 716.50 (decimal con coma)
+    str = str.replace(/,/g, '.');
+  } else if (str.includes('.')) {
+    // 4.299 -> 4299 (punto como miles); 1.234.567 -> 1234567
+    // Conserva el caso donde un punto decimal tenga 1-2 dígitos (poco común en CLP),
+    // pero para montos enteros chilenos asumimos miles si todos los grupos son de 3 dígitos.
+    const parts = str.split('.');
+    const allGroupsThreeDigits = parts.every((part, idx) => {
+      if (idx === 0) return /^-?\d{1,3}$/.test(part);
+      return /^\d{3}$/.test(part);
+    });
+    if (allGroupsThreeDigits) {
+      str = str.replace(/\./g, '');
+    }
+    // Si no cumple, se deja el punto como decimal y parseFloat decide.
+  }
+  const num = parseFloat(str);
+  return isNaN(num) ? 0 : num;
+}
+
+/**
  * Calcula el flete oculto en el precio bruto unitario.
  * Fórmula: [[Bruto - (Neto * (1 + 0.19 + ILA))] / 1.19]
  */

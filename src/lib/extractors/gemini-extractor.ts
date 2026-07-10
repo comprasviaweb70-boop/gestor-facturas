@@ -51,6 +51,7 @@ const DOCUMENT_SYSTEM_PROMPT = `Actúa como un experto en facturación electrón
 Reglas críticas:
 - Lee TODOS los productos de la factura.
 - cantidad: Es la cantidad del producto. Si en la factura viene con coma decimal, conviértela a número decimal válido.
+- precioUnitario, precioBrutoUnitario, subtotalNeto, impuestosAdicionales y fleteTotal: devuélvelos SIEMPRE como números enteros sin puntos ni comas (ej. 4299, no "4.299" ni "4,299"). Los valores son en pesos chilenos; no hay decimales. Si ves un punto en la factura, es separador de miles y debe ignorarse.
 - precioUnitario: Es el precio neto unitario.
 - precioBrutoUnitario: Es el precio final por unidad con impuestos y flete incluidos.
 - subtotalNeto: Es Cantidad * Precio Unitario.

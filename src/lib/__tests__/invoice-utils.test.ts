@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   extractJson,
   parseSpanishNumber,
+  parseChileanImageAmount,
   calcularFleteOcultoBruto,
   normalizeRut,
   detectPackMultiplier,
@@ -136,6 +137,36 @@ describe('parseSpanishNumber', () => {
 
   it('parsea cantidad decimal con coma (ej: factura chilena)', () => {
     expect(parseSpanishNumber('0,6')).toBe(0.6);
+  });
+});
+
+// =============================================================================
+// parseChileanImageAmount (parseo específico para imágenes/PDF chilenos)
+// =============================================================================
+describe('parseChileanImageAmount', () => {
+  it('interpreta el punto como separador de miles (4.299 -> 4299)', () => {
+    expect(parseChileanImageAmount('4.299')).toBe(4299);
+  });
+
+  it('maneja múltiples separadores de miles (1.234.567 -> 1234567)', () => {
+    expect(parseChileanImageAmount('1.234.567')).toBe(1234567);
+  });
+
+  it('interpreta la coma como decimal (716,50 -> 716.5)', () => {
+    expect(parseChileanImageAmount('716,50')).toBe(716.5);
+  });
+
+  it('combina separador de miles y decimal (1.234,56 -> 1234.56)', () => {
+    expect(parseChileanImageAmount('1.234,56')).toBe(1234.56);
+  });
+
+  it('devuelve número tal cual si ya es numérico', () => {
+    expect(parseChileanImageAmount(4299)).toBe(4299);
+  });
+
+  it('devuelve 0 para null/undefined', () => {
+    expect(parseChileanImageAmount(null)).toBe(0);
+    expect(parseChileanImageAmount(undefined)).toBe(0);
   });
 });
 

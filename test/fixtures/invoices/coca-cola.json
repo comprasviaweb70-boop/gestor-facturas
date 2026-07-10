@@ -12,31 +12,31 @@
         "nombre": "COCA COLA X06 REF 1500 CC",
         "codigo": "0128",
         "cantidad": "1/0",
-        "precioUnitario": 4299,
+        "precioUnitario": "4.299",
         "precioBrutoUnitario": 0,
-        "subtotalNeto": 4299,
-        "impuestosAdicionales": 774,
-        "fleteTotal": 1460
+        "subtotalNeto": "4.299",
+        "impuestosAdicionales": "774",
+        "fleteTotal": "1.460"
       },
       {
         "nombre": "COCA COLA X06 REF 2500 CC",
         "codigo": "0121",
         "cantidad": "2/0",
-        "precioUnitario": 6209,
+        "precioUnitario": "6.209",
         "precioBrutoUnitario": 0,
-        "subtotalNeto": 12418,
-        "impuestosAdicionales": 3053,
-        "fleteTotal": 3650
+        "subtotalNeto": "12.418",
+        "impuestosAdicionales": "3.053",
+        "fleteTotal": "3.650"
       },
       {
         "nombre": "ANDINA DEL VALLE NARANJA X06 PET 1750",
         "codigo": "7119",
         "cantidad": "1/0",
-        "precioUnitario": 7363,
+        "precioUnitario": "7.363",
         "precioBrutoUnitario": 0,
-        "subtotalNeto": 6259,
-        "impuestosAdicionales": 1414,
-        "fleteTotal": 1183
+        "subtotalNeto": "6.259",
+        "impuestosAdicionales": "1.414",
+        "fleteTotal": "1.183"
       }
     ]
   },
