@@ -615,6 +615,29 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
                 );
               })}
             </tbody>
+            <tfoot className="bg-gray-100 font-semibold text-gray-900 border-t-2 border-gray-300">
+              <tr>
+                <td className="px-3 py-3 text-sm" colSpan={2}>TOTALES</td>
+                <td className="px-3 py-3 text-center text-sm">
+                  {displayItems.reduce((sum, item) => sum + (Number(item.cantidad) || 0), 0).toLocaleString('es-CL')}
+                </td>
+                <td className="px-3 py-3 text-right text-sm">
+                  ${displayItems.reduce((sum, item) => sum + (Number(item.subtotalNeto) || 0), 0).toLocaleString('es-CL')}
+                </td>
+                <td className="px-3 py-3 text-right text-sm">-</td>
+                <td className="px-3 py-3 text-right text-sm">
+                  ${displayItems.reduce((sum, item) => sum + (Number(item.impuestosAdicionales) || 0), 0).toLocaleString('es-CL')}
+                </td>
+                <td className="px-3 py-3 text-right text-sm">
+                  ${displayItems.reduce((sum, item) => sum + (Number(item.fleteTotal) || 0), 0).toLocaleString('es-CL')}
+                </td>
+                <td className="px-3 py-3 text-right text-sm font-bold text-orange-600">
+                  ${displayItems.reduce((sum, item) => sum + (Number(item.subtotalNeto) || 0) + (Number(item.impuestosAdicionales) || 0) + (Number(item.fleteTotal) || 0), 0).toLocaleString('es-CL')}
+                </td>
+                <td className="px-3 py-3 text-right text-sm">-</td>
+                <td className="px-3 py-3" colSpan={3}></td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       )}
