@@ -10,6 +10,7 @@ interface ValidationTableProps {
   items?: any[];
   onItemsChange?: (items: any[]) => void;
   rutEmisor?: string;
+  extractionWarning?: string;
 }
 
 interface Toast {
@@ -18,7 +19,7 @@ interface Toast {
   type: 'success' | 'error' | 'warning';
 }
 
-export default function ValidationTable({ items: propItems, onItemsChange, rutEmisor }: ValidationTableProps) {
+export default function ValidationTable({ items: propItems, onItemsChange, rutEmisor, extractionWarning }: ValidationTableProps) {
   const [localItems, setLocalItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [showAll, setShowAll] = useState(false);
@@ -425,6 +426,16 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
           </button>
         </div>
       </div>
+
+      {extractionWarning && (
+        <div className="mb-4 p-4 rounded-lg bg-amber-50 border border-amber-200 flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-amber-800">Extracción con discrepancia</p>
+            <p className="text-sm text-amber-700">{extractionWarning}</p>
+          </div>
+        </div>
+      )}
 
       {displayItems.length === 0 ? (
         <p className="text-center text-gray-500 py-6">No hay productos pendientes de validación.</p>

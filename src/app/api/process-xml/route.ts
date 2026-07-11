@@ -12,6 +12,41 @@ export const maxDuration = 60;
 
 const MAX_XML_SIZE = 2 * 1024 * 1024; // 2MB para XML
 const MAX_FILE_BASE64_SIZE = 10 * 1024 * 1024; // ~7.5MB archivo real (10MB en base64)
+const TOTAL_MISMATCH_THRESHOLD = 0.02; // 2% de tolerancia
+
+interface TotalValidation {
+  valid: boolean;
+  sum: number;
+  total: number;
+  diff: number;
+  diffPct: number;
+}
+
+function validateTotals(data: any): TotalValidation {
+  if (!data.items || !Array.isArray(data.items) || data.items.length === 0) {
+    return { valid: true, sum: 0, total: 0, diff: 0, diffPct: 0 };
+  }
+
+  const total = Number(data.totalNetoFactura);
+  if (!total || total <= 0) {
+    return { valid: true, sum: 0, total: 0, diff: 0, diffPct: 0 };
+  }
+
+  const sum = data.items.reduce((acc: number, item: any) => {
+    return acc + (Number(item.subtotalNeto) || 0);
+  }, 0);
+
+  const diff = Math.abs(sum - total);
+  const diffPct = total > 0 ? diff / total : 0;
+
+  return {
+    valid: diffPct <= TOTAL_MISMATCH_THRESHOLD,
+    sum,
+    total,
+    diff,
+    diffPct,
+  };
+}
 
 export async function POST(request: Request) {
   try {
@@ -41,6 +76,8 @@ export async function POST(request: Request) {
     // 2. Extracción con Claude (fallback a Gemini si falla)
     let extractionResult;
     let extractorUsed: 'claude' | 'gemini' = 'claude';
+    let extractionWarning: string | undefined;
+
     try {
       extractionResult = await extractWithClaude({ xmlContent, fileBase64, fileType, docPromptOverride });
     } catch (claudeErr: any) {
@@ -56,7 +93,35 @@ export async function POST(request: Request) {
       }
     }
 
-    const { data, sourceFormat } = extractionResult;
+    let { data, sourceFormat } = extractionResult;
+
+    // 2b. Validación cruzada de totales para PDF/imagen: si no cuadra, reintentar con Gemini.
+    if (fileBase64 && data.totalNetoFactura) {
+      const claudeValidation = validateTotals(data);
+      if (!claudeValidation.valid) {
+        console.warn(
+          `Totales no cuadran con Claude: sum=${claudeValidation.sum}, total=${claudeValidation.total}, diffPct=${(claudeValidation.diffPct * 100).toFixed(1)}%`
+        );
+        try {
+          const geminiResult = await extractWithGemini({ xmlContent, fileBase64, fileType, docPromptOverride });
+          const geminiValidation = validateTotals(geminiResult.data);
+          if (geminiValidation.valid) {
+            console.log('Gemini corrigió la extracción: totales cuadran.');
+            extractionResult = geminiResult;
+            data = geminiResult.data;
+            extractorUsed = 'gemini';
+          } else {
+            console.warn(
+              `Gemini tampoco cuadró: sum=${geminiValidation.sum}, total=${geminiValidation.total}, diffPct=${(geminiValidation.diffPct * 100).toFixed(1)}%`
+            );
+            extractionWarning = `Diferencia detectada: suma de ítems (${Math.round(claudeValidation.sum)}) no cuadra con total factura (${Math.round(claudeValidation.total)}). Revisar cantidades y montos manualmente.`;
+          }
+        } catch (geminiRetryErr: any) {
+          console.warn('Retry con Gemini falló tras discrepancia de totales:', geminiRetryErr.message);
+          extractionWarning = `Diferencia detectada: suma de ítems (${Math.round(claudeValidation.sum)}) no cuadra con total factura (${Math.round(claudeValidation.total)}). Revisar cantidades y montos manualmente.`;
+        }
+      }
+    }
 
     // 3. Fallback a datos conocidos
     if (!data.rutEmisor && knownRut) data.rutEmisor = knownRut;
@@ -84,6 +149,8 @@ export async function POST(request: Request) {
       razonSocial: invoiceData.razonSocial,
       folio: invoiceData.folio,
       items: invoiceData.items,
+      extractionWarning,
+      extractorUsed,
     });
   } catch (error: any) {
     console.error('Error processing document:', error);

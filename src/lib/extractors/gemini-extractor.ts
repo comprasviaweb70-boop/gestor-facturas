@@ -34,6 +34,7 @@ const DOCUMENT_SYSTEM_PROMPT = `Actúa como un experto en facturación electrón
   "rutEmisor": "RUT del Emisor/Proveedor",
   "folio": "Número de folio de la factura",
   "razonSocial": "Razón Social del Emisor/Proveedor",
+  "totalNetoFactura": "Subtotal neto del pie de factura (suma de netos de todos los productos, sin IVA, sin impuestos adicionales y sin flete; entero sin puntos ni comas)",
   "items": [
     {
       "nombre": "Nombre/Descripción del producto",

@@ -341,6 +341,7 @@ export default function Home() {
           items={extractedData?.items} 
           onItemsChange={(updatedItems) => setExtractedData({...extractedData, items: updatedItems})}
           rutEmisor={extractedData?.rutEmisor}
+          extractionWarning={extractedData?.extractionWarning}
         />
 
         {/* Stock Preview - Marcha Blanca */}

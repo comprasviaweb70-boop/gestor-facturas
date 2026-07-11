@@ -10,6 +10,7 @@ Formato requerido:
   "rutEmisor": "RUT del emisor (ej: 93.281.000-K)",
   "folio": "Número del folio ubicado DEBAJO del texto 'FACTURA ELECTRONICA'",
   "razonSocial": "Razón social del emisor (ej: Coca Cola Embonor S.A.)",
+  "totalNetoFactura": "Subtotal neto del pie de factura (suma de Neto Total de todos los productos, sin IVA ni flete; entero sin puntos ni comas)",
   "items": [
     {
       "nombre": "Descripción del producto",
@@ -41,6 +42,7 @@ Formato requerido:
   "rutEmisor": "R.U.T. del emisor",
   "folio": "Número del folio ubicado al lado del texto 'FACTURA ELECTRONICA' (ej: 7471476)",
   "razonSocial": "Razón social del emisor",
+  "totalNetoFactura": "SubTotal Neto del pie de factura (sin S. Logísticos; entero sin puntos ni comas; ej: 68249)",
   "items": [
     {
       "nombre": "Descripción del producto (conservar el sufijo de pack: 6BOT, 06TPK, 12BOT, etc.)",
