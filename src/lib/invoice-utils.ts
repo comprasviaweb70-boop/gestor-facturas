@@ -62,6 +62,25 @@ export function parseSpanishNumber(val: string | number | null | undefined): num
 }
 
 /**
+ * Normaliza un porcentaje de descuento a valor decimal.
+ * Soporta formatos: 4.63%, 4,63%, 4.63, 0.0463, "4,63%".
+ * Retorna un valor entre 0 y 1 (ej: 4.63% -> 0.0463).
+ */
+export function parseDiscountPercentage(val: string | number | null | undefined): number {
+  if (val === null || val === undefined) return 0;
+  if (typeof val === 'number') {
+    if (isNaN(val) || val < 0) return 0;
+    return val > 1 ? val / 100 : val;
+  }
+  const str = String(val).trim().replace(/\s+/g, ' ');
+  if (!str) return 0;
+  const numeric = str.replace(/%/g, '').replace(/,/g, '.');
+  const num = parseFloat(numeric);
+  if (isNaN(num) || num < 0) return 0;
+  return num > 1 ? num / 100 : num;
+}
+
+/**
  * Parsea montos extraídos por OCR/IA desde imágenes o PDFs de facturas chilenas.
  * En este contexto el punto es siempre separador de miles y la coma es separador decimal.
  * Aplica únicamente a la vía imagen/PDF; el XML ya entrega los montos bien definidos.

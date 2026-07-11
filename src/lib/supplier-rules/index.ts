@@ -1,5 +1,5 @@
-import { PipelineContext, SupplierRule, InvoiceData, InvoiceItem, TaxRate } from '../types/invoice';
-import { normalizeRut, parseSpanishNumber, parseChileanImageAmount } from '../invoice-utils';
+import { PipelineContext, SupplierRule, InvoiceData, InvoiceItem, TaxRate, InvoiceDiscount } from '../types/invoice';
+import { normalizeRut, parseSpanishNumber, parseChileanImageAmount, parseDiscountPercentage } from '../invoice-utils';
 import { multiplierRules, matchesProvider } from './multiplier-rules';
 import { taxRules } from './tax-rules';
 import { postProcessRules } from './post-process-rules';
@@ -19,6 +19,15 @@ function normalizeItems(items: any[], sourceFormat: 'xml' | 'pdf' | 'image'): In
     item.fleteTotal = parseAmount(item.fleteTotal);
     return item as InvoiceItem;
   });
+}
+
+function normalizeDiscount(rawDiscount: any, sourceFormat: 'xml' | 'pdf' | 'image'): InvoiceDiscount | undefined {
+  if (!rawDiscount || typeof rawDiscount !== 'object') return undefined;
+  const parseAmount = sourceFormat === 'xml' ? parseSpanishNumber : parseChileanImageAmount;
+  const porcentaje = parseDiscountPercentage(rawDiscount.porcentaje);
+  const monto = parseAmount(rawDiscount.monto);
+  if (porcentaje === 0 && monto === 0) return undefined;
+  return { porcentaje, monto };
 }
 
 function runStage(rules: SupplierRule[], ctx: PipelineContext): PipelineContext {
@@ -42,6 +51,7 @@ export function runPipeline(
   const rutEmisor = normalizeRut(rawData.rutEmisor || '');
   const razonSocial = rawData.razonSocial || '';
   const items = rawData.items && Array.isArray(rawData.items) ? normalizeItems([...rawData.items], sourceFormat) : [];
+  const descuentoGlobal = normalizeDiscount(rawData.descuentoGlobal, sourceFormat);
 
   let ctx: PipelineContext = {
     rutEmisor,
@@ -49,6 +59,7 @@ export function runPipeline(
     items,
     taxRates,
     warnings: [],
+    descuentoGlobal,
   };
 
   ctx = runStage(multiplierRules, ctx);
@@ -62,6 +73,7 @@ export function runPipeline(
     items: ctx.items,
     sourceFormat,
     extractorUsed,
+    descuentoGlobal,
     extractionWarnings: ctx.warnings,
   };
 }

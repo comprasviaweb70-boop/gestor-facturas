@@ -40,13 +40,44 @@ export const dimakPostProcessRule: SupplierRule = {
   rutPrefix: '788095600',
   nameContains: 'DIMAK',
   apply: (ctx) => {
+    let discountRate = 0;
+    const discount = ctx.descuentoGlobal;
+
+    if (discount) {
+      if (typeof discount.porcentaje === 'number' && discount.porcentaje > 0) {
+        discountRate = discount.porcentaje;
+      } else if (typeof discount.monto === 'number' && discount.monto > 0) {
+        const totalNeto = ctx.items.reduce((sum, item) => sum + (item.subtotalNeto || 0), 0);
+        if (totalNeto > 0) {
+          discountRate = discount.monto / totalNeto;
+        }
+      }
+    }
+
     ctx.items.forEach((item) => {
+      if (discountRate > 0) {
+        const originalNeto = item.subtotalNeto || 0;
+        item.subtotalNeto = Math.round(originalNeto * (1 - discountRate));
+        if (item.cantidad > 0) {
+          item.precioUnitario = item.subtotalNeto / item.cantidad;
+        }
+        if (item.impuestosAdicionales && item.impuestosAdicionales > 0) {
+          item.impuestosAdicionales = Math.round(item.impuestosAdicionales * (1 - discountRate));
+        }
+        console.log(`DIMAK: Aplicando descuento global ${(discountRate * 100).toFixed(2)}% a ${item.nombre}: ${originalNeto} -> ${item.subtotalNeto}, impuestos: ${item.impuestosAdicionales}`);
+      }
+
       const tasa = detectAlcoholTaxRate(item.nombre);
       if (tasa > 0) {
         item.impuestosAdicionales = Math.round((item.subtotalNeto || 0) * tasa);
         console.log(`DIMAK: Detectado grado alcohólico en ${item.nombre}. Aplicando ILA ${tasa * 100}% -> ${item.impuestosAdicionales}`);
       }
     });
+
+    if (discountRate > 0) {
+      ctx.warnings.push(`DIMAK: Descuento global del ${(discountRate * 100).toFixed(2)}% aplicado proporcionalmente al subtotal neto. Los impuestos adicionales se recalcularon sobre el neto descontado.`);
+    }
+
     return ctx;
   },
 };

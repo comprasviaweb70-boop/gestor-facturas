@@ -1,0 +1,60 @@
+{
+  "provider": "DIMAK con descuento",
+  "rutEmisor": "788095600",
+  "razonSocial": "DIMAK",
+  "sourceFormat": "xml",
+  "rawData": {
+    "rutEmisor": "788095600",
+    "folio": "2002",
+    "razonSocial": "DIMAK",
+    "descuentoGlobal": {
+      "porcentaje": 0.0463,
+      "monto": 1065
+    },
+    "items": [
+      {
+        "nombre": "PISCO CAPPEL 35° 750ML",
+        "codigo": "PISCO35",
+        "cantidad": 5,
+        "precioUnitario": 3000,
+        "precioBrutoUnitario": 0,
+        "subtotalNeto": 15000,
+        "impuestosAdicionales": 0
+      },
+      {
+        "nombre": "PISCO BAUZA 40° 1LT",
+        "codigo": "PISCO40",
+        "cantidad": 2,
+        "precioUnitario": 4000,
+        "precioBrutoUnitario": 0,
+        "subtotalNeto": 8000,
+        "impuestosAdicionales": 0
+      }
+    ]
+  },
+  "expectedItems": [
+    {
+      "nombre": "PISCO CAPPEL 35° 750ML",
+      "codigo": "PISCO35",
+      "cantidad": 5,
+      "precioBrutoUnitario": 0,
+      "subtotalNeto": 14306,
+      "impuestosAdicionales": 4506,
+      "fleteTotal": 0,
+      "unidadesPorPack": 1,
+      "cantidadReal": 5
+    },
+    {
+      "nombre": "PISCO BAUZA 40° 1LT",
+      "codigo": "PISCO40",
+      "cantidad": 2,
+      "precioBrutoUnitario": 0,
+      "subtotalNeto": 7630,
+      "impuestosAdicionales": 2403,
+      "fleteTotal": 0,
+      "unidadesPorPack": 1,
+      "cantidadReal": 2
+    }
+  ],
+  "notes": "DIMAK con descuento global 4.63%: se aplica proporcionalmente al subtotal neto y se recalculan los impuestos adicionales por grado alcohólico"
+}

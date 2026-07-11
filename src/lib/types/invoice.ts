@@ -14,6 +14,11 @@ export interface InvoiceItem {
   internal_sku?: string;
 }
 
+export interface InvoiceDiscount {
+  porcentaje?: number;
+  monto?: number;
+}
+
 export interface InvoiceData {
   rutEmisor: string;
   folio: string;
@@ -21,6 +26,7 @@ export interface InvoiceData {
   items: InvoiceItem[];
   sourceFormat: 'xml' | 'pdf' | 'image';
   extractorUsed: 'claude' | 'gemini';
+  descuentoGlobal?: InvoiceDiscount;
   extractionWarnings?: string[];
 }
 
@@ -35,6 +41,7 @@ export interface PipelineContext {
   items: InvoiceItem[];
   taxRates: TaxRate[];
   warnings: string[];
+  descuentoGlobal?: InvoiceDiscount;
 }
 
 export type RuleStage = 'multiplier' | 'tax' | 'post-process';

@@ -5,7 +5,7 @@ import { getProviderImagePrompt } from '@/lib/extractors/provider-prompts';
 import { getProviderByRut } from '@/lib/providers';
 import { runPipeline } from '@/lib/supplier-rules';
 import { processEquivalences, fetchTaxRates } from '@/lib/equivalence-service';
-import { normalizeRut } from '@/lib/invoice-utils';
+import { normalizeRut, parseDiscountPercentage } from '@/lib/invoice-utils';
 
 // Permitir más tiempo para procesamiento de imágenes/PDF
 export const maxDuration = 60;
@@ -22,12 +22,18 @@ interface TotalValidation {
   diffPct: number;
 }
 
+function isCocaCola(data: any): boolean {
+  const rut = normalizeRut(data.rutEmisor || '');
+  const name = (data.razonSocial || '').toUpperCase();
+  return rut === '93281000K' || name.includes('COCA COLA') || name.includes('COCA-COLA') || name.includes('EMBONOR');
+}
+
 function validateTotals(data: any): TotalValidation {
   if (!data.items || !Array.isArray(data.items) || data.items.length === 0) {
     return { valid: true, sum: 0, total: 0, diff: 0, diffPct: 0 };
   }
 
-  const total = Number(data.totalNetoFactura);
+  let total = Number(data.totalNetoFactura);
   if (!total || total <= 0) {
     return { valid: true, sum: 0, total: 0, diff: 0, diffPct: 0 };
   }
@@ -36,12 +42,30 @@ function validateTotals(data: any): TotalValidation {
     return acc + (Number(item.subtotalNeto) || 0);
   }, 0);
 
-  const diff = Math.abs(sum - total);
+  // Para Coca-Cola el NETO del pie incluye fletes; la suma de subtotalNeto de ítems no.
+  // Se resta el total de fletes para comparar contra la base neta real (NETO - FLETES).
+  if (isCocaCola(data)) {
+    const totalFletes = data.items.reduce((acc: number, item: any) => {
+      return acc + (Number(item.fleteTotal) || 0);
+    }, 0);
+    total = total - totalFletes;
+  }
+
+  const discountRate = parseDiscountPercentage(data.descuentoGlobal?.porcentaje);
+  const discountAmount = Number(data.descuentoGlobal?.monto) || 0;
+  let adjustedSum = sum;
+  if (discountRate > 0) {
+    adjustedSum = sum * (1 - discountRate);
+  } else if (discountAmount > 0) {
+    adjustedSum = sum - discountAmount;
+  }
+
+  const diff = Math.abs(adjustedSum - total);
   const diffPct = total > 0 ? diff / total : 0;
 
   return {
     valid: diffPct <= TOTAL_MISMATCH_THRESHOLD,
-    sum,
+    sum: adjustedSum,
     total,
     diff,
     diffPct,
@@ -149,6 +173,7 @@ export async function POST(request: Request) {
       razonSocial: invoiceData.razonSocial,
       folio: invoiceData.folio,
       items: invoiceData.items,
+      descuentoGlobal: invoiceData.descuentoGlobal,
       extractionWarning,
       extractorUsed,
     });

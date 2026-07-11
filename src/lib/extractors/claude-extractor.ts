@@ -9,6 +9,10 @@ const XML_SYSTEM_PROMPT = `Actúa como un experto en facturación electrónica c
   "rutEmisor": "RUT del Emisor (etiqueta <RUTEmisor>)",
   "folio": "Folio de la factura",
   "razonSocial": "Razón Social del Emisor",
+  "descuentoGlobal": {
+    "porcentaje": "Porcentaje del descuento/recargo global (DscRcgGlobal) como decimal (4,63% -> 0.0463). Si no existe, 0.",
+    "monto": "Monto del descuento/recargo global en pesos (etiqueta <ValorDscRcg>). Si no existe, 0."
+  },
   "items": [
     {
       "nombre": "Nombre del producto",
@@ -25,9 +29,10 @@ const XML_SYSTEM_PROMPT = `Actúa como un experto en facturación electrónica c
 Regla crítica: 
 - precioUnitario: Es el precio neto unitario (etiqueta <PrcItem>).
 - precioBrutoUnitario: Es el precio con impuestos (etiqueta <MontoBrutoItem> dividido por cantidad).
-- subtotalNeto: Es el monto total neto del ítem (<MontoItem>).
+- subtotalNeto: Es el monto total neto del ítem (<MontoItem>), SIN aplicar el descuento global del pie.
 - codigo: Es el SKU del proveedor (VlrCodigo). Si no encuentra VlrCodigo, buscar en <CdgItem><Codigo> o <Sku>. Si no hay código identificable, usar 'S/C'.
 - fleteTotal: Si el RUT es 79576940-4 (ZAPATA), utiliza la fórmula: (Bruto - (Neto * (1 + 0.19 + ILA))) / 1.19. Multiplica el resultado por la cantidad.
+- descuentoGlobal: Extrae el descuento/recargo global del pie de factura (ej: <DscRcgGlobal>).
 
 Responde ÚNICAMENTE con el objeto JSON válido.`;
 
@@ -38,6 +43,10 @@ const DOCUMENT_SYSTEM_PROMPT = `Actúa como un experto en facturación electrón
   "folio": "Número de folio de la factura",
   "razonSocial": "Razón Social del Emisor/Proveedor",
   "totalNetoFactura": "Subtotal neto del pie de factura (suma de netos de todos los productos, sin IVA, sin impuestos adicionales y sin flete; entero sin puntos ni comas)",
+  "descuentoGlobal": {
+    "porcentaje": "Porcentaje del descuento global del pie de factura (ej: DS/RC 4,63%) como decimal (0.0463). Si no existe, 0.",
+    "monto": "Monto del descuento global en pesos (ej: 3.933). Si no existe, 0."
+  },
   "items": [
     {
       "nombre": "Nombre/Descripción del producto",
@@ -55,14 +64,15 @@ const DOCUMENT_SYSTEM_PROMPT = `Actúa como un experto en facturación electrón
 Reglas críticas:
 - Lee TODOS los productos de la factura.
 - cantidad: Es la cantidad del producto. Si en la factura viene con coma decimal (ej: "0,6"), conviértela a un número decimal válido usando punto (ej: 0.6). Nunca lo dejes como texto ni con coma.
-- precioUnitario, precioBrutoUnitario, subtotalNeto, impuestosAdicionales y fleteTotal: devuélvelos SIEMPRE como números enteros sin puntos ni comas (ej. 4299, no "4.299" ni "4,299"). Los valores son en pesos chilenos; no hay decimales. Si ves un punto en la factura, es separador de miles y debe ignorarse.
+- precioUnitario, precioBrutoUnitario, subtotalNeto, impuestosAdicionales, fleteTotal y descuentoGlobal.monto: devuélvelos SIEMPRE como números enteros sin puntos ni comas (ej. 4299, no "4.299" ni "4,299"). Los valores son en pesos chilenos; no hay decimales. Si ves un punto en la factura, es separador de miles y debe ignorarse.
 - precioUnitario: Es el precio neto unitario. Búscalo en la columna "T.NETO" y DIVÍDELO por la "Cantidad" para obtener el valor unitario. Si no existe "T.NETO", usa la columna "Precio" o "Neto". No uses el total bruto.
 - precioBrutoUnitario: Es el precio final por unidad con impuestos y flete incluidos. Busca columnas como "P.BRUTO", "P. BRUTO" o "PRECIO BRUTO". Si no existe la columna, CALCÚLALO dividiendo el "Total Línea" por la "Cantidad".
-- subtotalNeto: Es Cantidad * Precio Unitario.
+- subtotalNeto: Es Cantidad * Precio Unitario. NO apliques el descuento global del pie a este valor; extrae el neto de línea original.
 - codigo: Es el SKU del proveedor. Si no hay, usa 'S/C'.
 - tasaImpuestoAdicional: Es la TASA del impuesto adicional (ILA). Búscala en la columna dedicada a la tasa de impuestos de la factura (ej: 20.5%, 31.5%). Exprésalo siempre como decimal (0.205, 0.315). Si la columna está vacía, usa 0.
 - fleteTotal: Si el RUT es 79576940-4 (ZAPATA), utiliza la fórmula: (Bruto - (Neto * (1 + 0.19 + tasaImpuestoAdicional))) / 1.19. Multiplica el resultado por la cantidad.
 - impuestosAdicionales: Extrae montos de ILA/Impuestos adicionales.
+- descuentoGlobal: Extrae el descuento global del pie de factura (ej: DS/RC). Si solo hay monto, deja porcentaje en 0. Si solo hay porcentaje, deja monto en 0.
 
 Responde ÚNICAMENTE con el objeto JSON válido.`;
 

@@ -60,6 +60,7 @@ describe('Pipeline de reglas por proveedor — Fixtures de regresión', () => {
   const fixtures = [
     'hiperkor.json',
     'dimak.json',
+    'dimak-descuento.json',
     'bat-chile.json',
     'mad-charlies.json',
     'zapata.json',
