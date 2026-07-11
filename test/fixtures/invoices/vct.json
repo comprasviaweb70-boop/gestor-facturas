@@ -72,7 +72,7 @@
         "nombre": "VINO C.SUR BIC.CAB.SAUV.12BOT 2023",
         "codigo": "1021593E",
         "unidad": "BOT",
-        "cantidad": 2,
+        "cantidad": 3,
         "precioUnitario": 0,
         "precioBrutoUnitario": 0,
         "subtotalNeto": 5421,
@@ -84,7 +84,7 @@
         "nombre": "VINO C.SUR BIC.CARMENERE 12BOT 2023",
         "codigo": "10217734",
         "unidad": "BOT",
-        "cantidad": 2,
+        "cantidad": 3,
         "precioUnitario": 0,
         "precioBrutoUnitario": 0,
         "subtotalNeto": 5421,
@@ -148,23 +148,23 @@
     {
       "nombre": "VINO C.SUR BIC.CAB.SAUV.12BOT 2023",
       "codigo": "1021593E",
-      "cantidad": 2,
+      "cantidad": 3,
       "precioBrutoUnitario": 0,
       "impuestosAdicionales": 1111,
       "fleteTotal": 608,
       "unidadesPorPack": 12,
-      "cantidadReal": 2
+      "cantidadReal": 3
     },
     {
       "nombre": "VINO C.SUR BIC.CARMENERE 12BOT 2023",
       "codigo": "10217734",
-      "cantidad": 2,
+      "cantidad": 3,
       "precioBrutoUnitario": 0,
       "impuestosAdicionales": 1111,
       "fleteTotal": 608,
       "unidadesPorPack": 12,
-      "cantidadReal": 2
+      "cantidadReal": 3
     }
   ],
-  "notes": "VCT folio 7471476 (Comercial Peumo Ltda, RUT 85.037.900-9). PDF con 7 productos. CAJ multiplican por packSize (6BOT=6, 06TPK=6); BOT usan Cant directo (2). IABA 20.5% sobre neto sin flete. Flete (Serv.Log) por linea. Totales PDF: SubTotal Neto=68249, IABA=13991, S.Log=14991, Total Neto=83240."
+  "notes": "VCT folio 7471476 (Comercial Peumo Ltda, RUT 85.037.900-9). PDF con 7 productos. CAJ multiplican por packSize (6BOT=6, 06TPK=6); BOT usan Cant directo (3 para Cabernet y Carmenere). IABA 20.5% sobre neto sin flete. Flete (Serv.Log) por linea. Totales PDF: SubTotal Neto=68249, IABA=13991, S.Log=14991, Total Neto=83240."
 }

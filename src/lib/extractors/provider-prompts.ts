@@ -46,7 +46,7 @@ Formato requerido:
       "nombre": "Descripción del producto (conservar el sufijo de pack: 6BOT, 06TPK, 12BOT, etc.)",
       "codigo": "Código del producto (columna Código)",
       "unidad": "CAJ o BOT (columna Un.)",
-      "cantidad": 1,
+      "cantidad": "Número entero EXACTO de la columna Cant. (no de la columna cc). Verifica cuidadosamente el dígito; presta especial atención a no confundir 2 con 3.",
       "precioUnitario": 0,
       "precioBrutoUnitario": 0,
       "subtotalNeto": "Valor de la columna Valor Unit. Neto c/Descto multiplicado por la columna Cant. (sin puntos ni comas)",
@@ -60,7 +60,7 @@ Formato requerido:
 Reglas críticas:
 - Lee TODOS los productos de la tabla. Ignora líneas de totales, subtotales, garantía o depósito de envases.
 - unidad: extrae el valor exacto de la columna Un. (puede ser CAJ o BOT). Si no la ves, usa "CAJ".
-- cantidad: es un número entero (sin puntos ni comas). Si viene con coma decimal, conviértela a punto.
+- cantidad: número entero EXACTO de la columna Cant. (no uses la columna cc). Verifica el dígito cuidadosamente: presta especial atención a no confundir 2 con 3.
 - subtotalNeto: únicamente el neto del producto (Valor Unit. Neto c/Descto × Cant.), sin incluir el flete.
 - fleteTotal: es la columna Serv. Log. de la línea. Si la factura no la trae por línea, calcúlala como Total neto C/Serv. Logístico − subtotalNeto. El flete total del pie se suma si no está en líneas.
 - impuestosAdicionales: usa el valor de Total Imp. Adic. por línea. Si no existe, calcúlalo como subtotalNeto × tasaImpuestoAdicional.
