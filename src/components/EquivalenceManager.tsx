@@ -26,7 +26,10 @@ export default function EquivalenceManager() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
-  const PAGE_SIZE = 20;
+  const [PAGE_SIZE] = useState(20);
+  const [showNewForm, setShowNewForm] = useState(false);
+  const [newEq, setNewEq] = useState({ internal_sku: '', supplier_code: '', supplier_name: '', rut_provider: '' });
+  const [savingNew, setSavingNew] = useState(false);
 
   const fetchEquivalences = useCallback(async () => {
     setLoading(true);
@@ -167,6 +170,40 @@ export default function EquivalenceManager() {
     }
   };
 
+  const handleCreateNew = async () => {
+    if (!newEq.internal_sku.trim() || !newEq.supplier_code.trim()) {
+      alert('SKU Bsale y Código de Proveedor son obligatorios.');
+      return;
+    }
+    setSavingNew(true);
+    try {
+      const { data, error } = await supabase
+        .from('sku_equivalences')
+        .insert({
+          internal_sku: newEq.internal_sku.trim(),
+          source_sku: newEq.supplier_code.trim(),
+          supplier_code: newEq.supplier_code.trim(),
+          supplier_name: newEq.supplier_name.trim() || null,
+          rut_provider: newEq.rut_provider.trim() || null,
+        })
+        .select();
+
+      if (error) throw error;
+
+      if (data && data[0]) {
+        setEquivalences(prev => [{ ...data[0], product_name: '' } as Equivalence, ...prev]);
+        setNewEq({ internal_sku: '', supplier_code: '', supplier_name: '', rut_provider: '' });
+        setShowNewForm(false);
+        alert('Equivalencia creada correctamente.');
+      }
+    } catch (error: any) {
+      console.error('Error creating equivalence:', error);
+      alert('Error al crear: ' + error.message);
+    } finally {
+      setSavingNew(false);
+    }
+  };
+
   const paginatedItems = filteredEquivalences.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const totalPages = Math.ceil(filteredEquivalences.length / PAGE_SIZE);
 
@@ -247,7 +284,76 @@ export default function EquivalenceManager() {
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Recargar'}
             </button>
+            <button
+              onClick={() => setShowNewForm(!showNewForm)}
+              className="inline-flex items-center px-3 py-2 text-sm font-medium rounded-lg text-white bg-action hover:bg-orange-600 transition-colors justify-center"
+            >
+              + Nueva
+            </button>
           </div>
+
+          {/* New Equivalence Form */}
+          {showNewForm && (
+            <div className="p-4 border-b border-gray-100 bg-orange-50/50">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+                <div className="md:col-span-1">
+                  <label className="text-xs text-gray-500 mb-1 block">SKU Bsale *</label>
+                  <input
+                    type="text"
+                    value={newEq.internal_sku}
+                    onChange={(e) => setNewEq({ ...newEq, internal_sku: e.target.value })}
+                    className="w-full border rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-primary"
+                    placeholder="Ej: 65601529875949"
+                  />
+                </div>
+                <div className="md:col-span-1">
+                  <label className="text-xs text-gray-500 mb-1 block">Cód. Proveedor *</label>
+                  <input
+                    type="text"
+                    value={newEq.supplier_code}
+                    onChange={(e) => setNewEq({ ...newEq, supplier_code: e.target.value })}
+                    className="w-full border rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-primary"
+                    placeholder="Ej: 750"
+                  />
+                </div>
+                <div className="md:col-span-1">
+                  <label className="text-xs text-gray-500 mb-1 block">Proveedor</label>
+                  <input
+                    type="text"
+                    value={newEq.supplier_name}
+                    onChange={(e) => setNewEq({ ...newEq, supplier_name: e.target.value })}
+                    className="w-full border rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-primary"
+                    placeholder="Ej: ZAPATA"
+                  />
+                </div>
+                <div className="md:col-span-1">
+                  <label className="text-xs text-gray-500 mb-1 block">RUT</label>
+                  <input
+                    type="text"
+                    value={newEq.rut_provider}
+                    onChange={(e) => setNewEq({ ...newEq, rut_provider: e.target.value })}
+                    className="w-full border rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-primary"
+                    placeholder="Ej: 79576940-4"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleCreateNew}
+                    disabled={savingNew}
+                    className="inline-flex items-center px-4 py-1.5 text-sm font-medium rounded-lg text-white bg-primary hover:bg-primary/90 transition-colors disabled:opacity-50"
+                  >
+                    {savingNew ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Guardar'}
+                  </button>
+                  <button
+                    onClick={() => { setShowNewForm(false); setNewEq({ internal_sku: '', supplier_code: '', supplier_name: '', rut_provider: '' }); }}
+                    className="inline-flex items-center px-4 py-1.5 text-sm font-medium rounded-lg text-gray-600 border border-gray-300 hover:bg-gray-50 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Stats Bar */}
           <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 text-xs text-gray-500 flex justify-between">
