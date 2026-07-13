@@ -120,9 +120,9 @@ export default function Home() {
       });
 
       // Obtener códigos de proveedor para buscar equivalencias
-      const supplierCodes = extractedData.items?.map((item: any) => item.codigo).filter(Boolean) || [];
+      const supplierCodes = extractedData.items?.map((item: any) => (item.codigo || '').trim()).filter(Boolean) || [];
       
-      // Consultar equivalencias en Supabase
+      // Consultar equivalencias en Supabase (con normalización de RUT)
       let equivalences: { [key: string]: string } = {};
       
       if (supplierCodes.length > 0) {
@@ -132,13 +132,18 @@ export default function Home() {
           .in('supplier_code', supplierCodes);
           
         if (!error && eqData) {
+          const normalizedExtractedRut = (extractedData.rutEmisor || '').replace(/[^0-9Kk]/g, '').toUpperCase();
           eqData.forEach((eq: any) => {
-            // Priorizar coincidencia exacta con el RUT del proveedor
-            if (eq.rut_provider === extractedData.rutEmisor) {
+            const normalizedEqRut = (eq.rut_provider || '').replace(/[^0-9Kk]/g, '').toUpperCase();
+            if (normalizedEqRut === normalizedExtractedRut) {
               equivalences[eq.supplier_code] = eq.internal_sku;
-            } 
-            // Fallback: Si no tiene RUT (legado), lo usamos si aún no hay coincidencia con RUT
-            else if (!eq.rut_provider && !equivalences[eq.supplier_code]) {
+            } else if (!eq.rut_provider && !equivalences[eq.supplier_code]) {
+              equivalences[eq.supplier_code] = eq.internal_sku;
+            }
+          });
+          // Fallback final: si aun no hay match, asignar por supplier_code sin importar RUT
+          eqData.forEach((eq: any) => {
+            if (!equivalences[eq.supplier_code] && eq.internal_sku) {
               equivalences[eq.supplier_code] = eq.internal_sku;
             }
           });
@@ -155,7 +160,8 @@ export default function Home() {
         for (const item of extractedData.items) {
           const row = worksheet.getRow(currentRow);
           
-          const sku = item.internal_sku || equivalences[item.codigo] || 'SIN MATCH';
+          const code = (item.codigo || '').trim();
+          const sku = item.internal_sku || equivalences[code] || 'SIN MATCH';
           const subtotalNeto = Number(item.subtotalNeto) || 0;
           const imptoAdic = Number(item.impuestosAdicionales) || 0;
           const flete = Number(item.fleteTotal) || 0;
