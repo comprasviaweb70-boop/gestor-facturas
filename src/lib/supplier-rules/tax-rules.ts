@@ -135,19 +135,12 @@ export const ccuTaxRule: SupplierRule = {
       item.impuestosAdicionales = Math.round((item.subtotalNeto || 0) * tasa);
       
       // Calcular flete basado en PTU (precioBrutoUnitario)
-      // Fórmula correcta: fleteTotal = (cantidad × PTU − impuestosAdicionales − subtotalNeto) − (subtotalNeto × 0.19)
-      // Esto se descompone en:
-      // 1. Valor bruto total = cantidad × PTU
-      // 2. Valor neto real = valor bruto total − impuestosAdicionales
-      // 3. IVA = subtotalNeto × 0.19
-      // 4. Flete = valor neto real − subtotalNeto − IVA
+      // Fórmula: fleteTotal = (cantidad × PTU − impuestosAdicionales − subtotalNeto × 1.19) / 1.19
       const cantidad = item.cantidad || 1;
       const ptu = item.precioBrutoUnitario || 0;
-      const valorBrutoTotal = cantidad * ptu;
-      const valorNetoReal = valorBrutoTotal - item.impuestosAdicionales;
-      const iva = (item.subtotalNeto || 0) * 0.19;
+      const subtotalConIva = (item.subtotalNeto || 0) * 1.19;
       
-      item.fleteTotal = valorNetoReal - (item.subtotalNeto || 0) - iva;
+      item.fleteTotal = (cantidad * ptu - item.impuestosAdicionales - subtotalConIva) / 1.19;
       
       // Verificar si el flete es negativo o cero, lo que indica OCR incorrecto
       if (item.fleteTotal <= 0) {
