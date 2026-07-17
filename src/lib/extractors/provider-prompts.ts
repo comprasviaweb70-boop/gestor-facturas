@@ -1,6 +1,6 @@
 import { getProviderByKey } from '@/lib/providers';
 
-type ProviderPromptKey = 'coca-cola-embonor' | 'vct' | 'ideal';
+type ProviderPromptKey = 'coca-cola-embonor' | 'vct' | 'ideal' | 'ccu';
 
 const PROVIDER_IMAGE_PROMPTS: Record<ProviderPromptKey, string> = {
   'coca-cola-embonor': `Actúa como un experto en facturación electrónica chilena. Analiza esta factura de Coca-Cola Embonor y extrae exclusivamente los datos en formato JSON.
@@ -102,6 +102,40 @@ Reglas críticas:
 - impuestosAdicionales: siempre 0 (IDEAL no usa impuestos adicionales).
 - fleteTotal: siempre 0 (IDEAL no usa flete).
 - codigo: si no hay código visible, usa "S/C".
+- Responde ÚNICAMENTE con el objeto JSON válido.`,
+  
+  'ccu': `Actúa como un experto en facturación electrónica chilena. Analiza esta factura de COMERCIAL CCU S.A. (R.U.T. 99.554.560-8) y extrae exclusivamente los datos en formato JSON.
+
+Formato requerido:
+{
+  "rutEmisor": "R.U.T. del emisor (99.554.560-8)",
+  "folio": "Número del folio de la factura",
+  "razonSocial": "Razón social del emisor",
+  "totalNetoFactura": "Subtotal neto del pie de factura (sin IVA; entero sin puntos ni comas)",
+  "items": [
+    {
+      "nombre": "Descripción del producto",
+      "codigo": "Código del producto (columna Código)",
+      "cantidad": "Cantidad tal como aparece en la columna Cantidad (valor visual, sin expansión de packs)",
+      "precioUnitario": 0,
+      "precioBrutoUnitario": "Valor de la columna 'Total x Unidad' (PTU - Precio Total por Unidad, con 1 decimal)",
+      "subtotalNeto": "Valor de la columna 'Valor' (neto post-descuento comercial, antes de IVA e IABA; entero sin puntos ni comas)",
+      "impuestosAdicionales": 0,
+      "fleteTotal": 0
+    }
+  ]
+}
+
+Reglas críticas:
+- Lee TODOS los productos de la tabla. Ignora líneas de totales, subtotales, garantía o depósito de envases.
+- EXCLUYE productos con código 9999 ("Flete de Mercaderías" - contabilidad interna CCU).
+- subtotalNeto: extrae el valor de la columna 'Valor' (NO de 'Precio Unit'), es el neto post-descuento comercial antes de IVA e IABA.
+- precioBrutoUnitario: extrae el valor de la columna 'Total x Unidad' (PTU - Precio Total por Unidad, con 1 decimal).
+- cantidad: devuelve el valor visual de la columna Cantidad (sin expandir packs).
+- impuestosAdicionales: inicialmente 0; el cálculo se hará posteriormente según clasificación fiscal.
+- fleteTotal: inicialmente 0; el cálculo se hará posteriormente basado en PTU.
+- codigo: si no hay código visible, usa "S/C".
+- Todos los montos deben ser números enteros sin puntos ni comas; en Chile el punto es separador de miles.
 - Responde ÚNICAMENTE con el objeto JSON válido.`,
 };
 

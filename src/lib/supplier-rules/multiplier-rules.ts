@@ -5,6 +5,7 @@ import {
   detectBatMultiplier,
   detectCocaColaMultiplier,
   detectPackMultiplier,
+  detectCcuPackMultiplier,
 } from '../invoice-utils';
 
 function matchesProvider(ctx: PipelineContext, rutPrefix?: string, nameContains?: string): boolean {
@@ -111,6 +112,31 @@ export const cocaColaMultiplierRule: SupplierRule = {
   },
 };
 
+export const ccuMultiplierRule: SupplierRule = {
+  stage: 'multiplier',
+  rutPrefix: '99554560',
+  nameContains: 'CCU',
+  apply: (ctx) => {
+    ctx.items.forEach((item) => {
+      const mult = detectCcuPackMultiplier(item.nombre);
+      if (mult > 1) {
+        item.unidadesPorPack = mult;
+        item.cantidadReal = (item.cantidad || 0) * mult;
+        const originalCantidad = item.cantidad || 0;
+        item.cantidad = item.cantidadReal;
+        if (item.subtotalNeto && item.subtotalNeto > 0) {
+          item.precioUnitario = item.subtotalNeto / item.cantidadReal;
+        }
+        console.log(`Pack Applied Auto (CCU): ${item.nombre} -> Cantidad: ${originalCantidad} to ${item.cantidad}, PCU: ${item.precioUnitario}`);
+      } else {
+        item.unidadesPorPack = 1;
+        item.cantidadReal = item.cantidad || 0;
+      }
+    });
+    return ctx;
+  },
+};
+
 export const generalPackRule: SupplierRule = {
   stage: 'multiplier',
   apply: (ctx) => {
@@ -137,6 +163,7 @@ export const multiplierRules: SupplierRule[] = [
   dimakMultiplierRule,
   batMultiplierRule,
   cocaColaMultiplierRule,
+  ccuMultiplierRule,
   generalPackRule,
 ];
 

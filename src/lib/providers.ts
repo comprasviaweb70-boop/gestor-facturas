@@ -30,6 +30,13 @@ export const KNOWN_IMAGE_PROVIDERS: KnownProvider[] = [
     rutNormalized: '826235004',
     documentPromptKey: 'ideal',
   },
+  {
+    id: 'ccu',
+    name: 'Comercial CCU S.A.',
+    rut: '99.554.560-8',
+    rutNormalized: '995545608',
+    documentPromptKey: 'ccu',
+  },
 ];
 
 export function getProviderByRut(rut?: string): KnownProvider | undefined {

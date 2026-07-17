@@ -47,6 +47,7 @@ export const generalTaxRule: SupplierRule = {
   apply: (ctx) => {
     if (matchesProvider(ctx, '78753810', 'HIPER')) return ctx;
     if (matchesProvider(ctx, '93281000', 'COCA')) return ctx;
+    if (matchesProvider(ctx, '99554560', 'CCU')) return ctx;
 
     ctx.items.forEach((item) => {
       if (!item.impuestosAdicionales || item.impuestosAdicionales === 0) {
@@ -106,8 +107,55 @@ export const zapataTaxRule: SupplierRule = {
   },
 };
 
+export const ccuTaxRule: SupplierRule = {
+  stage: 'tax',
+  rutPrefix: '99554560',
+  nameContains: 'CCU',
+  apply: (ctx) => {
+    ctx.items.forEach((item) => {
+      const nombreUpper = (item.nombre || '').toUpperCase();
+      
+      // Determinar tasa de impuesto según clasificación fiscal
+      let tasa = 0.18; // Default 18%
+      
+      if (nombreUpper.includes('CERVEZA')) {
+        tasa = 0.205; // 20.5%
+      } else if (nombreUpper.includes('ZERO') || nombreUpper.includes('SUGARFREE') || 
+                 nombreUpper.includes('MAS') || nombreUpper.includes('SEVEN UP') || 
+                 nombreUpper.includes('SPRIM')) {
+        tasa = 0.10; // 10%
+      } else if (nombreUpper.includes('AGUA') || nombreUpper.includes('GATORADE') || 
+                 nombreUpper.includes('CACHANTUN') || nombreUpper.includes('CATUN') || 
+                 nombreUpper.includes('WATTS') || nombreUpper.includes('JUGO') || 
+                 nombreUpper.includes('NECTAR')) {
+        tasa = 0; // 0%
+      }
+      
+      // Calcular impuestos adicionales
+      item.impuestosAdicionales = Math.round((item.subtotalNeto || 0) * tasa);
+      
+      // Calcular flete basado en PTU (precioBrutoUnitario)
+      // Fórmula: fleteTotal = (cantidad × PTU − impuestosAdicionales − subtotalNeto × 1.19) / 1.19
+      const cantidad = item.cantidad || 1;
+      const ptu = item.precioBrutoUnitario || 0;
+      const subtotalConIva = (item.subtotalNeto || 0) * 1.19;
+      
+      item.fleteTotal = (cantidad * ptu - item.impuestosAdicionales - subtotalConIva) / 1.19;
+      
+      // Verificar si el flete es negativo o cero, lo que indica OCR incorrecto
+      if (item.fleteTotal <= 0) {
+        console.warn(`Advertencia: Flete calculado ≤ 0 para ${item.nombre}. Posible error en OCR de PTU o Subtotal.`);
+      }
+      
+      console.log(`CCU: ${item.nombre} -> Tasa: ${tasa}, Impuestos: ${item.impuestosAdicionales}, Flete: ${item.fleteTotal}`);
+    });
+    return ctx;
+  },
+};
+
 export const taxRules: SupplierRule[] = [
   hiperkorTaxRule,
+  ccuTaxRule,
   generalTaxRule,
   zapataTaxRule,
 ];
