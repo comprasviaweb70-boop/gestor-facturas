@@ -117,10 +117,10 @@ export async function POST(request: Request) {
       }
     }
 
-    let { data, sourceFormat } = extractionResult;
+    let { data, sourceFormat, multipleInvoices } = extractionResult;
 
     // 2b. Validación cruzada de totales para PDF/imagen: si no cuadra, reintentar con Gemini.
-    if (fileBase64 && data.totalNetoFactura) {
+    if (fileBase64 && !multipleInvoices && data.totalNetoFactura) {
       const claudeValidation = validateTotals(data);
       if (!claudeValidation.valid) {
         console.warn(
@@ -152,10 +152,51 @@ export async function POST(request: Request) {
     if (!data.razonSocial && knownName) data.razonSocial = knownName;
     if (knownName && !data.razonSocial) data.razonSocial = knownName;
 
-    const rutEmisor = normalizeRut(data.rutEmisor || '');
-
     // 4. Obtener tax rates de Supabase
     const taxRates = await fetchTaxRates();
+
+    // 5. Procesar múltiples facturas si es el caso
+    if (multipleInvoices && Array.isArray(data)) {
+      const processedInvoices = [];
+      
+      for (let i = 0; i < data.length; i++) {
+        const invoiceData = data[i];
+        
+        // Fallback a datos conocidos para cada factura
+        if (!invoiceData.rutEmisor && knownRut) invoiceData.rutEmisor = knownRut;
+        if (!invoiceData.razonSocial && knownName) invoiceData.razonSocial = knownName;
+        if (knownName && !invoiceData.razonSocial) invoiceData.razonSocial = knownName;
+
+        const rutEmisor = normalizeRut(invoiceData.rutEmisor || '');
+
+        // Ejecutar pipeline de reglas para cada factura
+        const processedInvoice = runPipeline(invoiceData, taxRates, sourceFormat, extractorUsed);
+
+        // Procesar equivalencias SKU para cada factura
+        if (processedInvoice.items && processedInvoice.items.length > 0) {
+          await processEquivalences(processedInvoice.items, rutEmisor);
+        }
+
+        processedInvoices.push({
+          ...invoiceData,
+          rutEmisor: invoiceData.rutEmisor || knownRut || '',
+          razonSocial: processedInvoice.razonSocial,
+          folio: processedInvoice.folio,
+          items: processedInvoice.items,
+          descuentoGlobal: processedInvoice.descuentoGlobal,
+          extractionWarning,
+          extractorUsed,
+        });
+      }
+
+      return NextResponse.json({
+        multipleInvoices: true,
+        invoices: processedInvoices,
+      });
+    }
+
+    // Procesamiento normal para una sola factura
+    const rutEmisor = normalizeRut(data.rutEmisor || '');
 
     // 5. Ejecutar pipeline de reglas
     const invoiceData = runPipeline(data, taxRates, sourceFormat, extractorUsed);

@@ -24,6 +24,7 @@ interface FileStatus {
   folio?: string;
   razonSocial?: string;
   itemCount?: number;
+  invoiceCount?: number;
 }
 
 export default function UploadModule({ onDataExtracted }: UploadModuleProps) {
@@ -108,6 +109,11 @@ export default function UploadModule({ onDataExtracted }: UploadModuleProps) {
       throw new Error(data.error);
     }
 
+    // Si hay múltiples facturas, devolver el array completo
+    if (data.multipleInvoices && data.invoices) {
+      return data;
+    }
+
     return data;
   };
 
@@ -162,23 +168,28 @@ export default function UploadModule({ onDataExtracted }: UploadModuleProps) {
       try {
         const data = await processSingleFile(validFiles[i]);
         
-        // Acumular datos
-        if (!accumulatedDataRef.current) {
-          // Primer archivo: usar como base
-          accumulatedDataRef.current = { ...data };
-        } else {
-          // Archivos siguientes: agregar ítems y concatenar folios
-          const existingFolios = String(accumulatedDataRef.current.folio || '');
-          const newFolio = String(data.folio || '');
-          
-          accumulatedDataRef.current = {
-            ...accumulatedDataRef.current,
-            folio: existingFolios + ', ' + newFolio,
-            items: [
-              ...(accumulatedDataRef.current.items || []),
-              ...(data.items || []),
-            ],
-          };
+        // Manejar múltiples facturas de un solo archivo
+        const invoices = data.multipleInvoices && data.invoices ? data.invoices : [data];
+        
+        // Acumular datos de todas las facturas
+        for (const invoice of invoices) {
+          if (!accumulatedDataRef.current) {
+            // Primera factura: usar como base
+            accumulatedDataRef.current = { ...invoice };
+          } else {
+            // Facturas siguientes: agregar ítems y concatenar folios
+            const existingFolios = String(accumulatedDataRef.current.folio || '');
+            const newFolio = String(invoice.folio || '');
+            
+            accumulatedDataRef.current = {
+              ...accumulatedDataRef.current,
+              folio: existingFolios + ', ' + newFolio,
+              items: [
+                ...(accumulatedDataRef.current.items || []),
+                ...(invoice.items || []),
+              ],
+            };
+          }
         }
 
         // Notificar al padre con datos acumulados (la tabla se actualiza en tiempo real)
@@ -189,9 +200,10 @@ export default function UploadModule({ onDataExtracted }: UploadModuleProps) {
           idx === i ? { 
             ...s, 
             status: 'done', 
-            folio: data.folio,
-            razonSocial: data.razonSocial,
-            itemCount: data.items?.length || 0,
+            folio: invoices.map(inv => inv.folio).join(', '),
+            razonSocial: invoices[0]?.razonSocial,
+            itemCount: invoices.reduce((acc, inv) => acc + (inv.items?.length || 0), 0),
+            invoiceCount: invoices.length,
           } : s
         ));
       } catch (error: any) {
@@ -221,6 +233,7 @@ export default function UploadModule({ onDataExtracted }: UploadModuleProps) {
   const doneCount = fileStatuses.filter(s => s.status === 'done').length;
   const errorCount = fileStatuses.filter(s => s.status === 'error').length;
   const totalItems = fileStatuses.reduce((acc, s) => acc + (s.itemCount || 0), 0);
+  const totalInvoices = fileStatuses.filter(fs => fs.status === 'done').reduce((acc, fs) => acc + (fs.invoiceCount || 1), 0);
 
   return (
     <div className="w-full max-w-4xl mx-auto p-6 bg-white rounded-xl shadow-sm border border-gray-100">
@@ -306,7 +319,7 @@ export default function UploadModule({ onDataExtracted }: UploadModuleProps) {
             </span>
             {doneCount > 0 && (
               <span className="bg-green-50 text-green-700 px-3 py-1 rounded-full font-medium">
-                {doneCount} procesado{doneCount > 1 ? 's' : ''} • {totalItems} productos
+                {totalInvoices} factura{totalInvoices > 1 ? 's' : ''} • {totalItems} productos
               </span>
             )}
             {errorCount > 0 && (
@@ -339,7 +352,10 @@ export default function UploadModule({ onDataExtracted }: UploadModuleProps) {
                     <p className="text-gray-800 font-medium truncate">{fs.file.name}</p>
                     {fs.status === 'done' && (
                       <p className="text-xs text-green-600">
-                        Folio {fs.folio} • {fs.itemCount} producto{(fs.itemCount || 0) > 1 ? 's' : ''}
+                        {fs.invoiceCount && fs.invoiceCount > 1 
+                          ? `${fs.invoiceCount} facturas • ${fs.itemCount} productos`
+                          : `Folio ${fs.folio} • ${fs.itemCount} producto${(fs.itemCount || 0) > 1 ? 's' : ''}`
+                        }
                         {fs.razonSocial ? ` • ${fs.razonSocial}` : ''}
                       </p>
                     )}

@@ -36,33 +36,39 @@ Regla crítica:
 
 Responde ÚNICAMENTE con el objeto JSON válido.`;
 
-const DOCUMENT_SYSTEM_PROMPT = `Actúa como un experto en facturación electrónica chilena. Analiza esta factura (PDF o imagen) y extrae exclusivamente los siguientes datos en formato JSON:
+const DOCUMENT_SYSTEM_PROMPT = `Actúa como un experto en facturación electrónica chilena. Analiza este documento (PDF o imagen) y extrae las facturas en formato JSON.
 
-{
-  "rutEmisor": "RUT del Emisor/Proveedor",
-  "folio": "Número de folio de la factura",
-  "razonSocial": "Razón Social del Emisor/Proveedor",
-  "totalNetoFactura": "Subtotal neto del pie de factura (suma de netos de todos los productos, sin IVA, sin impuestos adicionales y sin flete; entero sin puntos ni comas)",
-  "descuentoGlobal": {
-    "porcentaje": "Porcentaje del descuento global del pie de factura (ej: DS/RC 4,63%) como decimal (0.0463). Si no existe, 0.",
-    "monto": "Monto del descuento global en pesos (ej: 3.933). Si no existe, 0."
-  },
-  "items": [
-    {
-      "nombre": "Nombre/Descripción del producto",
-      "codigo": "Código o SKU del proveedor",
-      "cantidad": 1,
-      "precioUnitario": 100,
-      "precioBrutoUnitario": 0,
-      "subtotalNeto": 100,
-      "impuestosAdicionales": 0,
-      "fleteTotal": 0
-    }
-  ]
-}
+IMPORTANTE: Si el documento contiene MÚLTIPLES facturas (varias páginas con diferentes folios), devuelve un ARRAY de objetos JSON, uno por cada factura. Si solo hay una factura, devuelve un array con un solo elemento.
+
+Formato requerido (array de facturas):
+[
+  {
+    "rutEmisor": "RUT del Emisor/Proveedor",
+    "folio": "Número de folio de la factura",
+    "razonSocial": "Razón Social del Emisor/Proveedor",
+    "totalNetoFactura": "Subtotal neto del pie de factura (suma de netos de todos los productos, sin IVA, sin impuestos adicionales y sin flete; entero sin puntos ni comas)",
+    "descuentoGlobal": {
+      "porcentaje": "Porcentaje del descuento global del pie de factura (ej: DS/RC 4,63%) como decimal (0.0463). Si no existe, 0.",
+      "monto": "Monto del descuento global en pesos (ej: 3.933). Si no existe, 0."
+    },
+    "items": [
+      {
+        "nombre": "Nombre/Descripción del producto",
+        "codigo": "Código o SKU del proveedor",
+        "cantidad": 1,
+        "precioUnitario": 100,
+        "precioBrutoUnitario": 0,
+        "subtotalNeto": 100,
+        "impuestosAdicionales": 0,
+        "fleteTotal": 0
+      }
+    ]
+  }
+]
 
 Reglas críticas:
-- Lee TODOS los productos de la factura.
+- IDENTIFICA cada factura separada en el documento. Cada factura tiene su propio folio, RUT, y totales.
+- Lee TODOS los productos de CADA factura.
 - cantidad: Es la cantidad del producto. Si en la factura viene con coma decimal (ej: "0,6"), conviértela a un número decimal válido usando punto (ej: 0.6). Nunca lo dejes como texto ni con coma.
 - precioUnitario, precioBrutoUnitario, subtotalNeto, impuestosAdicionales, fleteTotal y descuentoGlobal.monto: devuélvelos SIEMPRE como números enteros sin puntos ni comas (ej. 4299, no "4.299" ni "4,299"). Los valores son en pesos chilenos; no hay decimales. Si ves un punto en la factura, es separador de miles y debe ignorarse.
 - precioUnitario: Es el precio neto unitario. Búscalo en la columna "T.NETO" y DIVÍDELO por la "Cantidad" para obtener el valor unitario. Si no existe "T.NETO", usa la columna "Precio" o "Neto". No uses el total bruto.
@@ -74,11 +80,12 @@ Reglas críticas:
 - impuestosAdicionales: Extrae montos de ILA/Impuestos adicionales.
 - descuentoGlobal: Extrae el descuento global del pie de factura (ej: DS/RC). Si solo hay monto, deja porcentaje en 0. Si solo hay porcentaje, deja monto en 0.
 
-Responde ÚNICAMENTE con el objeto JSON válido.`;
+Responde ÚNICAMENTE con el array JSON válido.`;
 
 export interface ClaudeExtractionResult {
   data: any;
   sourceFormat: 'xml' | 'pdf' | 'image';
+  multipleInvoices?: boolean;
 }
 
 export async function extractWithClaude(params: {
@@ -190,11 +197,18 @@ export async function extractWithClaude(params: {
 
   let data = extractJson(text.trim());
 
+  // Si Claude devuelve un array, verificar si son múltiples facturas
   if (Array.isArray(data)) {
     if (data.length === 0) {
       throw new Error('Claude devolvió un array vacío.');
     }
-    console.log(`Claude devolvió array con ${data.length} elemento(s). Usando el primero.`);
+    // Si hay más de un elemento, son múltiples facturas
+    if (data.length > 1) {
+      console.log(`Claude devolvió array con ${data.length} facturas.`);
+      return { data, sourceFormat, multipleInvoices: true };
+    }
+    // Si hay un solo elemento, es una sola factura
+    console.log(`Claude devolvió array con 1 elemento. Usando como factura única.`);
     data = data[0];
   }
 
