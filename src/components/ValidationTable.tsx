@@ -468,8 +468,27 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
                 // El PCU incluye flete según el modelo de costeo actual
                 const pcu = calculatePCU(subtotalNeto, imptoAdic, cantidad, flete);
                 
+                // Detectar cambio de factura para mostrar separador
+                const prevFolio = idx > 0 ? displayItems[idx - 1].invoiceFolio : null;
+                const currentFolio = item.invoiceFolio;
+                const showInvoiceSeparator = currentFolio && currentFolio !== prevFolio;
+                
                 return (
-                  <tr key={id} className="bg-white border-b hover:bg-gray-50">
+                  <>
+                    {showInvoiceSeparator && (
+                      <tr key={`separator-${currentFolio}`} className="bg-indigo-50 border-b border-indigo-200">
+                        <td colSpan={12} className="px-3 py-2">
+                          <div className="flex items-center gap-2">
+                            <div className="h-px flex-1 bg-indigo-300"></div>
+                            <span className="text-xs font-semibold text-indigo-700 uppercase tracking-wide">
+                              Factura N° {currentFolio}
+                            </span>
+                            <div className="h-px flex-1 bg-indigo-300"></div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    <tr key={id} className="bg-white border-b hover:bg-gray-50">
                     {/* Producto */}
                     <td className="px-3 py-2 font-medium text-gray-900">
                       <textarea
@@ -612,6 +631,49 @@ export default function ValidationTable({ items: propItems, onItemsChange, rutEm
                       </button>
                     </td>
                   </tr>
+                  {/* Fila de totales de factura si es el último ítem de esta factura */}
+                  {(() => {
+                    const currentFolio = item.invoiceFolio;
+                    const nextFolio = idx < displayItems.length - 1 ? displayItems[idx + 1].invoiceFolio : null;
+                    const isLastItemOfInvoice = currentFolio && currentFolio !== nextFolio;
+                    
+                    if (!isLastItemOfInvoice) return null;
+                    
+                    // Calcular totales de esta factura
+                    const invoiceItems = displayItems.filter(i => i.invoiceFolio === currentFolio);
+                    const invoiceCantidad = invoiceItems.reduce((sum, i) => sum + (Number(i.cantidad) || 0), 0);
+                    const invoiceSubtotal = invoiceItems.reduce((sum, i) => sum + (Number(i.subtotalNeto) || 0), 0);
+                    const invoiceImpto = invoiceItems.reduce((sum, i) => sum + (Number(i.impuestosAdicionales) || 0), 0);
+                    const invoiceFlete = invoiceItems.reduce((sum, i) => sum + (Number(i.fleteTotal) || 0), 0);
+                    const invoiceTotal = invoiceSubtotal + invoiceImpto + invoiceFlete;
+                    
+                    return (
+                      <tr key={`totals-${currentFolio}`} className="bg-indigo-50/50 border-b-2 border-indigo-200 font-semibold text-indigo-900">
+                        <td className="px-3 py-2 text-sm" colSpan={2}>
+                          <span className="text-xs text-indigo-600">Total Factura {currentFolio}</span>
+                        </td>
+                        <td className="px-3 py-2 text-center text-sm">
+                          {invoiceCantidad.toLocaleString('es-CL')}
+                        </td>
+                        <td className="px-3 py-2 text-right text-sm">
+                          ${invoiceSubtotal.toLocaleString('es-CL')}
+                        </td>
+                        <td className="px-3 py-2 text-right text-sm">-</td>
+                        <td className="px-3 py-2 text-right text-sm">
+                          ${invoiceImpto.toLocaleString('es-CL')}
+                        </td>
+                        <td className="px-3 py-2 text-right text-sm">
+                          ${invoiceFlete.toLocaleString('es-CL')}
+                        </td>
+                        <td className="px-3 py-2 text-right text-sm font-bold text-indigo-700">
+                          ${invoiceTotal.toLocaleString('es-CL')}
+                        </td>
+                        <td className="px-3 py-2 text-right text-sm">-</td>
+                        <td className="px-3 py-2" colSpan={3}></td>
+                      </tr>
+                    );
+                  })()}
+                  </>
                 );
               })}
             </tbody>

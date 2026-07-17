@@ -171,22 +171,30 @@ export default function UploadModule({ onDataExtracted }: UploadModuleProps) {
         // Manejar múltiples facturas de un solo archivo
         const invoices = data.multipleInvoices && data.invoices ? data.invoices : [data];
         
-        // Acumular datos de todas las facturas
+        // Acumular datos de todas las facturas, marcando cada ítem con su folio
         for (const invoice of invoices) {
+          const invoiceFolio = String(invoice.folio || '');
+          const itemsWithFolio = (invoice.items || []).map((item: any) => ({
+            ...item,
+            invoiceFolio,
+          }));
+
           if (!accumulatedDataRef.current) {
             // Primera factura: usar como base
-            accumulatedDataRef.current = { ...invoice };
+            accumulatedDataRef.current = {
+              ...invoice,
+              items: itemsWithFolio,
+            };
           } else {
             // Facturas siguientes: agregar ítems y concatenar folios
             const existingFolios = String(accumulatedDataRef.current.folio || '');
-            const newFolio = String(invoice.folio || '');
             
             accumulatedDataRef.current = {
               ...accumulatedDataRef.current,
-              folio: existingFolios + ', ' + newFolio,
+              folio: existingFolios + ', ' + invoiceFolio,
               items: [
                 ...(accumulatedDataRef.current.items || []),
-                ...(invoice.items || []),
+                ...itemsWithFolio,
               ],
             };
           }
@@ -200,9 +208,9 @@ export default function UploadModule({ onDataExtracted }: UploadModuleProps) {
           idx === i ? { 
             ...s, 
             status: 'done', 
-            folio: invoices.map(inv => inv.folio).join(', '),
+            folio: invoices.map((inv: any) => inv.folio).join(', '),
             razonSocial: invoices[0]?.razonSocial,
-            itemCount: invoices.reduce((acc, inv) => acc + (inv.items?.length || 0), 0),
+            itemCount: invoices.reduce((acc: number, inv: any) => acc + (inv.items?.length || 0), 0),
             invoiceCount: invoices.length,
           } : s
         ));
