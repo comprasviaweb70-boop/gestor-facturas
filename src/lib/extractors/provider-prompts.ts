@@ -80,7 +80,7 @@ Formato requerido:
   "rutEmisor": "R.U.T. del emisor (ej: 82.623.500-4)",
   "folio": "Número del folio de la factura",
   "razonSocial": "Razón social del emisor",
-  "totalNetoFactura": "Subtotal neto del pie de factura (sin IVA ni flete; entero sin puntos ni comas)",
+  "totalNetoFactura": "Subtotal neto del pie de factura (sin IVA; entero sin puntos ni comas)",
   "items": [
     {
       "nombre": "Descripción del producto",
@@ -89,8 +89,8 @@ Formato requerido:
       "precioUnitario": 0,
       "precioBrutoUnitario": 0,
       "subtotalNeto": "Valor neto de la línea (entero, sin puntos ni comas)",
-      "impuestosAdicionales": "Valor del impuesto adicional de la línea si existe (ej: IABA). Si no hay, usa 0.",
-      "fleteTotal": "Valor del flete de la línea si existe. Si no hay, usa 0."
+      "impuestosAdicionales": 0,
+      "fleteTotal": 0
     }
   ]
 }
@@ -98,8 +98,9 @@ Formato requerido:
 Reglas críticas:
 - Lee TODOS los productos de la tabla. Ignora líneas de totales, subtotales, garantía o depósito de envases.
 - cantidad: número EXACTO de la columna Cantidad. Si trae formato con barra (ej: "2/0"), devuélvelo como string.
-- subtotalNeto, impuestosAdicionales y fleteTotal: devuélvelos SIEMPRE como números enteros sin puntos ni comas (ej: 4299, no "4.299"). En Chile el punto es separador de miles; ignóralo. Si no hay valor, usa 0.
-- impuestosAdicionales: usa ÚNICAMENTE el valor del impuesto adicional (IABA u otro). NUNCA uses el valor del IVA (19%).
+- subtotalNeto: devuélvelo SIEMPRE como número entero sin puntos ni comas (ej: 4299, no "4.299"). En Chile el punto es separador de miles; ignóralo. Si no hay valor, usa 0.
+- impuestosAdicionales: siempre 0 (IDEAL no usa impuestos adicionales).
+- fleteTotal: siempre 0 (IDEAL no usa flete).
 - codigo: si no hay código visible, usa "S/C".
 - Responde ÚNICAMENTE con el objeto JSON válido.`,
 };
