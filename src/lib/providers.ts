@@ -23,6 +23,13 @@ export const KNOWN_IMAGE_PROVIDERS: KnownProvider[] = [
     rutNormalized: '850379009',
     documentPromptKey: 'vct',
   },
+  {
+    id: 'ideal',
+    name: 'IDEAL',
+    rut: '82.623.500-4',
+    rutNormalized: '826235004',
+    documentPromptKey: 'ideal',
+  },
 ];
 
 export function getProviderByRut(rut?: string): KnownProvider | undefined {
