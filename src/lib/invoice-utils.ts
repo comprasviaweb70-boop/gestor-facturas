@@ -280,9 +280,15 @@ export function detectCcuPackMultiplier(nombreProducto: string): number {
   }
 
   // Regla B: `{n}PF` o `{n}PC` → n
+  // Solo aplica si NO es parte de un patrón `{n}PF X{m}` (ese ya fue capturado por Regla C)
   const reglaB = nombreUpper.match(/(\d+)(?:PF|PC)\b/);
   if (reglaB) {
-    return parseInt(reglaB[1], 10);
+    // Verificar que después del PF/PC no venga un "X{n}"
+    const posMatch = nombreUpper.indexOf(reglaB[0]);
+    const resto = nombreUpper.substring(posMatch + reglaB[0].length);
+    if (!resto.match(/^\s*X\s*\d+/)) {
+      return parseInt(reglaB[1], 10);
+    }
   }
 
   // Regla A: Último número después de la 'X' en la descripción

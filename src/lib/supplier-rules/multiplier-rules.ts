@@ -120,13 +120,14 @@ export const ccuMultiplierRule: SupplierRule = {
     ctx.items.forEach((item) => {
       const mult = detectCcuPackMultiplier(item.nombre);
       const cantidadOriginal = item.cantidad || 0;
+      const cantidadFinal = cantidadOriginal * mult;
       item.unidadesPorPack = mult;
-      item.cantidadReal = cantidadOriginal * mult;
-      item.cantidad = item.cantidadReal;
-      if (item.subtotalNeto && item.subtotalNeto > 0 && item.cantidadReal > 0) {
-        item.precioUnitario = item.subtotalNeto / item.cantidadReal;
+      item.cantidadReal = cantidadFinal;
+      item.cantidad = cantidadFinal;
+      if (item.subtotalNeto && item.subtotalNeto > 0 && cantidadFinal > 0) {
+        item.precioUnitario = item.subtotalNeto / cantidadFinal;
       }
-      console.log(`Pack Applied Auto (CCU): ${item.nombre} -> Pack: ${mult}, CantVisual: ${cantidadOriginal}, CantFinal: ${item.cantidadReal}, PCU: ${item.precioUnitario}`);
+      console.log(`[CCU Pack]: "${item.nombre}" | CantVisual: ${cantidadOriginal} × Pack(${mult}) = ${cantidadFinal} | Subtotal: ${item.subtotalNeto} | PCU: ${item.precioUnitario}`);
     });
     return ctx;
   },

@@ -8,14 +8,14 @@ function normalizeItems(items: any[], sourceFormat: 'xml' | 'pdf' | 'image'): In
   const parseAmount = sourceFormat === 'xml' ? parseSpanishNumber : parseChileanImageAmount;
 
   return items.map((item: any) => {
-    // Mapear cantidadVisual a cantidad si viene del prompt CCU actualizado
-    if (!item.cantidad && item.cantidadVisual !== undefined) {
-      item.cantidad = item.cantidadVisual;
+    // Mapear cantidadVisual a cantidad (prompt CCU actualizado)
+    // Priorizar cantidadVisual si existe; si no, usar cantidad
+    const rawCantidad = item.cantidadVisual !== undefined ? item.cantidadVisual : item.cantidad;
+    if (typeof rawCantidad === 'string') {
+      item.cantidad = parseFloat(rawCantidad.replace(/,/g, '.'));
+    } else {
+      item.cantidad = Number(rawCantidad) || 0;
     }
-    if (typeof item.cantidad === 'string') {
-      item.cantidad = parseFloat(item.cantidad.replace(/,/g, '.'));
-    }
-    item.cantidad = Number(item.cantidad) || 0;
     item.precioUnitario = parseAmount(item.precioUnitario);
     item.precioBrutoUnitario = parseAmount(item.precioBrutoUnitario);
     item.subtotalNeto = parseAmount(item.subtotalNeto);
