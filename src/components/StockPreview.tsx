@@ -17,19 +17,31 @@ interface PreviewItem {
   productName: string;
   internalSku: string | null;
   quantity: number;
-  cost: number; // PCU con flete e impuestos
+  cost: number;
   total: number;
   status: 'ok' | 'missing_sku' | 'zero_qty' | 'inactive_in_bsale';
+  folio: string;
+}
+
+interface InvoiceGroupState {
+  folio: string;
+  previewItems: PreviewItem[];
+  jsonPayload: any;
+  allValid: boolean;
+  totalOk: number;
+  totalMissing: number;
+  totalZero: number;
+  totalInactive: number;
+  grandTotal: number;
 }
 
 export default function StockPreview({ extractedData, fantasyName, margin }: StockPreviewProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [previewItems, setPreviewItems] = useState<PreviewItem[]>([]);
+  const [groupStates, setGroupStates] = useState<Record<string, InvoiceGroupState>>({});
   const [loading, setLoading] = useState(false);
-  const [jsonPayload, setJsonPayload] = useState<any>(null);
   const [copied, setCopied] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [sendResult, setSendResult] = useState<{ success: boolean; message: string; details?: any } | null>(null);
+  const [sendingMap, setSendingMap] = useState<Record<string, boolean>>({});
+  const [sendResultMap, setSendResultMap] = useState<Record<string, { success: boolean; message: string; details?: any }>>({});
   const [officeId, setOfficeId] = useState<number | null>(null);
   const [revalidating, setRevalidating] = useState(false);
 
@@ -41,8 +53,7 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
         if (res.ok) {
           const data = await res.json();
           if (data.items && data.items.length > 0) {
-            // Buscar sucursal Valdivia o usar la primera
-            const valdivia = data.items.find((o: any) => 
+            const valdivia = data.items.find((o: any) =>
               (o.name || '').toLowerCase().includes('valdivia')
             );
             setOfficeId(valdivia ? valdivia.id : data.items[0].id);
@@ -57,7 +68,7 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
         }
       } catch (e) {
         console.error('Error de conexión al cargar sucursales:', e);
-        setOfficeId(1); // Fallback
+        setOfficeId(1);
       }
     };
     loadOffice();
@@ -68,7 +79,7 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
     setLoading(true);
 
     try {
-      // Obtener equivalencias
+      // 1. Obtener equivalencias (global para todos los items)
       const supplierCodes = extractedData.items.map((item: any) => item.codigo?.trim()).filter(Boolean);
       let equivalences: { [key: string]: string } = {};
 
@@ -88,7 +99,6 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
               equivalences[eq.supplier_code] = eq.internal_sku;
             }
           });
-          // Fallback final: si aun no hay match, asignar por supplier_code sin importar RUT
           eqData.forEach((eq: any) => {
             if (!equivalences[eq.supplier_code] && eq.internal_sku) {
               equivalences[eq.supplier_code] = eq.internal_sku;
@@ -97,7 +107,7 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
         }
       }
 
-      // Construir items de preview
+      // 2. Construir items de preview (con folio preservado)
       const items: PreviewItem[] = extractedData.items.map((item: any) => {
         const code = (item.codigo || '').trim();
         const sku = item.internal_sku || equivalences[code] || null;
@@ -105,8 +115,6 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
         const imptoAdic = Number(item.impuestosAdicionales) || 0;
         const flete = Number(item.fleteTotal) || 0;
         const qty = Number(item.cantidad);
-        
-        // El PCU incluye flete según el modelo de costeo actual
         const pcu = calculatePCU(subtotalNeto, imptoAdic, qty, flete);
 
         let status: 'ok' | 'missing_sku' | 'zero_qty' | 'inactive_in_bsale' = 'ok';
@@ -121,10 +129,11 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
           cost: Math.round(pcu),
           total: Math.round(qty * pcu),
           status,
+          folio: item.invoiceFolio || extractedData.folio || 'Sin-Folio',
         };
       });
 
-      // Validar estado activo en Bsale para cada SKU mapeado
+      // 3. Validar estado activo en Bsale para cada SKU mapeado
       const skuChecks = items
         .filter(item => item.internalSku && item.status === 'ok')
         .map(async (item) => {
@@ -152,23 +161,50 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
         return item;
       });
 
-      setPreviewItems(validatedItems);
+      // 4. Agrupar por folio
+      const groups = new Map<string, PreviewItem[]>();
+      for (const item of validatedItems) {
+        if (!groups.has(item.folio)) groups.set(item.folio, []);
+        groups.get(item.folio)!.push(item);
+      }
 
-      // Construir payload JSON para Bsale (solo items realmente válidos)
-      const validItems = validatedItems.filter(i => i.status === 'ok');
-      const payload = {
-        document: "Factura",
-        officeId: officeId || 1,
-        documentNumber: String(extractedData.folio || ''),
-        note: `Recepción automática - ${fantasyName || extractedData.razonSocial || 'Proveedor'}`,
-        details: validItems.map(item => ({
-          quantity: item.quantity,
-          code: item.internalSku,
-          cost: Math.round(item.cost), // Asegurar entero para CLP
-        })),
-      };
+      // 5. Construir estado por grupo
+      const newGroupStates: Record<string, InvoiceGroupState> = {};
+      for (const [folio, groupItems] of groups) {
+        const totalOk = groupItems.filter(i => i.status === 'ok').length;
+        const totalMissing = groupItems.filter(i => i.status === 'missing_sku').length;
+        const totalZero = groupItems.filter(i => i.status === 'zero_qty').length;
+        const totalInactive = groupItems.filter(i => i.status === 'inactive_in_bsale').length;
+        const grandTotal = groupItems.reduce((sum, i) => sum + i.total, 0);
+        const allValid = totalMissing === 0 && totalZero === 0 && totalInactive === 0;
+        const validItems = groupItems.filter(i => i.status === 'ok');
 
-      setJsonPayload(payload);
+        const payload = {
+          document: 'Factura',
+          officeId: officeId || 1,
+          documentNumber: String(folio),
+          note: `Recepción automática - ${fantasyName || extractedData.razonSocial || 'Proveedor'}`,
+          details: validItems.map(item => ({
+            quantity: item.quantity,
+            code: item.internalSku,
+            cost: Math.round(item.cost),
+          })),
+        };
+
+        newGroupStates[folio] = {
+          folio,
+          previewItems: groupItems,
+          jsonPayload: payload,
+          allValid,
+          totalOk,
+          totalMissing,
+          totalZero,
+          totalInactive,
+          grandTotal,
+        };
+      }
+
+      setGroupStates(newGroupStates);
     } catch (error) {
       console.error('Error building preview:', error);
       alert('Error al construir la vista previa: ' + (error instanceof Error ? error.message : 'Error desconocido'));
@@ -181,14 +217,7 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
     if (isOpen && extractedData?.items) {
       buildPreview();
     }
-  }, [isOpen, extractedData]);
-
-  const totalOk = previewItems.filter(i => i.status === 'ok').length;
-  const totalMissing = previewItems.filter(i => i.status === 'missing_sku').length;
-  const totalZero = previewItems.filter(i => i.status === 'zero_qty').length;
-  const totalInactive = previewItems.filter(i => i.status === 'inactive_in_bsale').length;
-  const grandTotal = previewItems.reduce((sum, i) => sum + i.total, 0);
-  const allValid = totalMissing === 0 && totalZero === 0 && totalInactive === 0;
+  }, [isOpen, extractedData, officeId]);
 
   const handleRevalidate = async () => {
     if (revalidating) return;
@@ -198,102 +227,103 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
   };
 
   const handleCopyJson = () => {
-    if (!jsonPayload) return;
-    navigator.clipboard.writeText(JSON.stringify(jsonPayload, null, 2));
+    const payloads = Object.values(groupStates).map(g => g.jsonPayload).filter(Boolean);
+    if (payloads.length === 0) return;
+    navigator.clipboard.writeText(JSON.stringify(payloads.length === 1 ? payloads[0] : payloads, null, 2));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleSendToBsale = async () => {
-    if (!jsonPayload || jsonPayload.details.length === 0) {
+  const handleSendToBsale = async (folio: string) => {
+    const group = groupStates[folio];
+    if (!group || !group.jsonPayload || group.jsonPayload.details.length === 0) {
       alert('No hay productos válidos para enviar.');
       return;
     }
 
     const displayName = fantasyName || extractedData?.razonSocial || 'Proveedor';
-    const totalUnits = jsonPayload.details.reduce((s: number, d: any) => s + d.quantity, 0);
+    const totalUnits = group.jsonPayload.details.reduce((s: number, d: any) => s + d.quantity, 0);
 
-    // Primera confirmación
     const confirm1 = confirm(
       `¿Enviar recepción de stock a Bsale?\n\n` +
       `📋 Proveedor: ${displayName}\n` +
-      `📄 Folio: ${jsonPayload.documentNumber}\n` +
-      `📦 Productos: ${jsonPayload.details.length}\n` +
+      `📄 Folio: ${folio}\n` +
+      `📦 Productos: ${group.jsonPayload.details.length}\n` +
       `🔢 Unidades totales: ${totalUnits}\n` +
-      `💰 Costo total: $${grandTotal.toLocaleString('es-CL')}\n\n` +
+      `💰 Costo total: $${group.grandTotal.toLocaleString('es-CL')}\n\n` +
       `Esta acción ingresará stock REAL en Bsale.`
     );
     if (!confirm1) return;
 
-    // Segunda confirmación
     const confirm2 = confirm(
       '⚠️ CONFIRMACIÓN FINAL\n\n' +
-      `¿Estás seguro de ingresar ${totalUnits} unidades de ${jsonPayload.details.length} productos al stock de Bsale?\n\n` +
+      `¿Estás seguro de ingresar ${totalUnits} unidades de ${group.jsonPayload.details.length} productos al stock de Bsale?\n\n` +
       'Haz clic en "Aceptar" para confirmar el envío.'
     );
     if (!confirm2) return;
 
-    setSending(true);
-    setSendResult(null);
+    setSendingMap(prev => ({ ...prev, [folio]: true }));
+    setSendResultMap(prev => {
+      const next = { ...prev };
+      delete next[folio];
+      return next;
+    });
 
     try {
       const res = await fetch('/api/bsale/stock-reception', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          folio: jsonPayload.documentNumber,
+          folio: group.jsonPayload.documentNumber,
           razonSocial: displayName,
-          officeId: jsonPayload.officeId,
-          items: jsonPayload.details,
+          officeId: group.jsonPayload.officeId,
+          items: group.jsonPayload.details,
         }),
       });
 
       const data = await res.json();
 
       if (res.ok && data.success) {
-        setSendResult({
-          success: true,
-          message: `✅ ${data.message}`,
-          details: data,
-        });
+        setSendResultMap(prev => ({
+          ...prev,
+          [folio]: { success: true, message: `✅ ${data.message}`, details: data },
+        }));
       } else {
-        setSendResult({
-          success: false,
-          message: `❌ ${data.error || 'Error desconocido'}`,
-          details: data,
-        });
+        setSendResultMap(prev => ({
+          ...prev,
+          [folio]: { success: false, message: `❌ ${data.error || 'Error desconocido'}`, details: data },
+        }));
       }
     } catch (error: any) {
-      setSendResult({
-        success: false,
-        message: `❌ Error de conexión: ${error.message}`,
-      });
+      setSendResultMap(prev => ({
+        ...prev,
+        [folio]: { success: false, message: `❌ Error de conexión: ${error.message}` },
+      }));
     } finally {
-      setSending(false);
+      setSendingMap(prev => ({ ...prev, [folio]: false }));
     }
   };
 
   const handleExportPreviewExcel = async () => {
-    if (previewItems.length === 0) return;
-    
+    const allItems = Object.values(groupStates).flatMap(g => g.previewItems);
+    if (allItems.length === 0) return;
+
     const workbook = new ExcelJS.Workbook();
     const ws = workbook.addWorksheet('Preview Bsale');
 
     const displayName = fantasyName || extractedData?.razonSocial || 'Proveedor';
 
-    // Header
     ws.getCell('A1').value = 'VISTA PREVIA - Recepción de Stock Bsale';
     ws.getCell('A1').font = { bold: true, size: 14, color: { argb: 'FF00427E' } };
     ws.mergeCells('A1:G1');
 
     ws.getCell('A2').value = `Proveedor: ${displayName}`;
     ws.getCell('A2').font = { bold: true };
-    ws.getCell('A3').value = `Folio: ${extractedData?.folio || 'S/F'}`;
+    ws.getCell('A3').value = `Folio(s): ${extractedData?.folio || 'S/F'}`;
     ws.getCell('A3').font = { bold: true };
     ws.getCell('D2').value = `RUT: ${extractedData?.rutEmisor || ''}`;
     ws.getCell('D3').value = `Fecha: ${new Date().toLocaleDateString('es-CL')}`;
 
-    // Table headers
     const headerRow = ws.getRow(5);
     headerRow.values = ['Estado', 'Cód. Proveedor', 'Producto', 'SKU Bsale', 'Cantidad', 'Costo Unit.', 'Total Línea'];
     headerRow.eachCell(cell => {
@@ -303,7 +333,7 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
     });
 
     let row = 6;
-    for (const item of previewItems) {
+    for (const item of allItems) {
       const r = ws.getRow(row);
       r.values = [
         item.status === 'ok' ? '✅ OK' : item.status === 'missing_sku' ? '❌ SIN SKU' : item.status === 'inactive_in_bsale' ? '⚠️ INACTIVO BSALE' : '⚠️ CANT. 0',
@@ -314,19 +344,24 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
         item.cost,
         item.total,
       ];
-      
+
       if (item.status !== 'ok') {
         r.eachCell(cell => {
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: item.status === 'missing_sku' ? 'FFFDE8E8' : 'FFFFFBE8' } };
         });
       }
 
-      r.getCell(6).numFmt = '0'; // PCU como número puro
+      r.getCell(6).numFmt = '0';
       r.getCell(7).numFmt = '"$"#,##0';
       row++;
     }
 
-    // Total row
+    const totalOk = allItems.filter(i => i.status === 'ok').length;
+    const totalMissing = allItems.filter(i => i.status === 'missing_sku').length;
+    const totalZero = allItems.filter(i => i.status === 'zero_qty').length;
+    const totalInactive = allItems.filter(i => i.status === 'inactive_in_bsale').length;
+    const grandTotal = allItems.reduce((sum, i) => sum + i.total, 0);
+
     const totalRow = ws.getRow(row);
     totalRow.getCell(5).value = 'TOTAL:';
     totalRow.getCell(5).font = { bold: true };
@@ -334,12 +369,10 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
     totalRow.getCell(7).numFmt = '"$"#,##0';
     totalRow.getCell(7).font = { bold: true };
 
-    // Summary row
     const summaryRow = ws.getRow(row + 2);
     summaryRow.getCell(1).value = `Resumen: ${totalOk} OK | ${totalMissing} sin SKU | ${totalZero} cant. 0 | ${totalInactive} inactivo(s) Bsale`;
     summaryRow.getCell(1).font = { italic: true, color: { argb: 'FF666666' } };
 
-    // Auto width
     ws.columns.forEach((col: any) => {
       let maxLen = 0;
       col.eachCell({ includeEmpty: true }, (cell: any) => {
@@ -361,6 +394,13 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
   };
 
   if (!extractedData?.items) return null;
+
+  const allGroups = Object.values(groupStates);
+  const globalTotalOk = allGroups.reduce((s, g) => s + g.totalOk, 0);
+  const globalTotalMissing = allGroups.reduce((s, g) => s + g.totalMissing, 0);
+  const globalTotalZero = allGroups.reduce((s, g) => s + g.totalZero, 0);
+  const globalTotalInactive = allGroups.reduce((s, g) => s + g.totalInactive, 0);
+  const globalGrandTotal = allGroups.reduce((s, g) => s + g.grandTotal, 0);
 
   return (
     <div className="w-full max-w-6xl mx-auto mt-6">
@@ -387,10 +427,10 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
             </div>
           ) : (
             <>
-              {/* Status Bar */}
+              {/* Status Bar Global */}
               <div className="px-4 py-3 border-b border-gray-100 flex flex-wrap gap-3 items-center bg-gray-50">
                 <span className="text-sm font-medium text-gray-700">
-                  Folio: <span className="text-primary font-bold">{extractedData?.folio || 'S/F'}</span>
+                  Folio(s): <span className="text-primary font-bold">{extractedData?.folio || 'S/F'}</span>
                 </span>
                 <span className="text-sm text-gray-400">|</span>
                 <span className="text-sm text-gray-700">
@@ -399,227 +439,262 @@ export default function StockPreview({ extractedData, fantasyName, margin }: Sto
                 <span className="text-sm text-gray-400">|</span>
                 <div className="flex gap-2 ml-auto">
                   <span className="inline-flex items-center text-xs bg-green-50 text-green-700 px-2.5 py-1 rounded-full font-medium">
-                    <CheckCircle className="h-3 w-3 mr-1" /> {totalOk} listos
+                    <CheckCircle className="h-3 w-3 mr-1" /> {globalTotalOk} listos
                   </span>
-                  {totalMissing > 0 && (
+                  {globalTotalMissing > 0 && (
                     <span className="inline-flex items-center text-xs bg-red-50 text-red-700 px-2.5 py-1 rounded-full font-medium">
-                      <XCircle className="h-3 w-3 mr-1" /> {totalMissing} sin SKU
+                      <XCircle className="h-3 w-3 mr-1" /> {globalTotalMissing} sin SKU
                     </span>
                   )}
-                  {totalZero > 0 && (
+                  {globalTotalZero > 0 && (
                     <span className="inline-flex items-center text-xs bg-amber-50 text-amber-700 px-2.5 py-1 rounded-full font-medium">
-                      <AlertTriangle className="h-3 w-3 mr-1" /> {totalZero} cant. 0
+                      <AlertTriangle className="h-3 w-3 mr-1" /> {globalTotalZero} cant. 0
                     </span>
                   )}
-                  {totalInactive > 0 && (
+                  {globalTotalInactive > 0 && (
                     <span className="inline-flex items-center text-xs bg-orange-50 text-orange-700 px-2.5 py-1 rounded-full font-medium">
-                      <AlertTriangle className="h-3 w-3 mr-1" /> {totalInactive} inactivo(s) en Bsale
+                      <AlertTriangle className="h-3 w-3 mr-1" /> {globalTotalInactive} inactivo(s) en Bsale
                     </span>
                   )}
                 </div>
               </div>
 
-              {/* Warning Banner */}
-              {totalMissing > 0 && (
-                <div className="mx-4 mt-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
-                  <AlertTriangle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
-                  <p className="text-sm text-red-700">
-                    <strong>{totalMissing} producto(s)</strong> no tienen SKU de Bsale mapeado.
-                    Estos ítems <strong>no se incluirán</strong> en el ingreso de stock.
-                    Vuelve a la tabla de validación para parear los productos faltantes.
-                  </p>
-                </div>
-              )}
-              {totalInactive > 0 && (
-                <div className="mx-4 mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg flex items-start gap-2">
-                  <AlertTriangle className="h-4 w-4 text-orange-600 mt-0.5 flex-shrink-0" />
-                  <div className="text-sm text-orange-800">
-                    <p className="font-bold">
-                      ⚠ No se puede enviar: {totalInactive} producto(s) inactivo(s) en Bsale
-                    </p>
-                    <ul className="mt-1 list-disc list-inside">
-                      {previewItems
-                        .filter(i => i.status === 'inactive_in_bsale')
-                        .map((item, idx) => (
-                          <li key={idx}>
-                            {item.productName} — <span className="font-mono text-xs">{item.internalSku}</span>
-                          </li>
-                        ))}
-                    </ul>
-                    <p className="mt-1">
-                      Reactívalo(s) en Bsale y usa <strong>Revalidar</strong> para reintentar el envío completo.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Preview Table */}
-              <div className="overflow-x-auto p-4">
-                <table className="w-full text-sm text-left">
-                  <thead className="text-xs uppercase bg-gray-100 text-gray-600">
-                    <tr>
-                      <th className="px-3 py-2.5 w-8"></th>
-                      <th className="px-3 py-2.5">Cód. Prov.</th>
-                      <th className="px-3 py-2.5">Producto</th>
-                      <th className="px-3 py-2.5">SKU Bsale</th>
-                      <th className="px-3 py-2.5 text-right">Cantidad</th>
-                      <th className="px-3 py-2.5 text-right">Costo Unit.</th>
-                      <th className="px-3 py-2.5 text-right font-bold text-orange-600">Total Línea</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {previewItems.map((item, idx) => (
-                      <tr
-                        key={idx}
-                        className={`border-b transition-colors ${
-                          item.status === 'missing_sku'
-                            ? 'bg-red-50/50 hover:bg-red-50'
-                            : item.status === 'zero_qty'
-                            ? 'bg-amber-50/50 hover:bg-amber-50'
-                            : item.status === 'inactive_in_bsale'
-                            ? 'bg-orange-50/50 hover:bg-orange-50'
-                            : 'bg-white hover:bg-gray-50'
-                        }`}
-                      >
-                        <td className="px-3 py-2.5 text-center">
-                          {item.status === 'ok' && <CheckCircle className="h-4 w-4 text-green-500" />}
-                          {item.status === 'missing_sku' && <XCircle className="h-4 w-4 text-red-500" />}
-                          {item.status === 'zero_qty' && <AlertTriangle className="h-4 w-4 text-amber-500" />}
-                          {item.status === 'inactive_in_bsale' && <AlertTriangle className="h-4 w-4 text-orange-600" />}
-                        </td>
-                        <td className="px-3 py-2.5 font-mono text-xs text-gray-500">{item.supplierCode}</td>
-                        <td className="px-3 py-2.5 text-gray-800 font-medium">{item.productName}</td>
-                        <td className="px-3 py-2.5 font-mono text-xs">
-                          {item.internalSku ? (
-                            <span className="text-green-700 bg-green-50 px-2 py-0.5 rounded">{item.internalSku}</span>
-                          ) : (
-                            <span className="text-red-600 bg-red-50 px-2 py-0.5 rounded">SIN MATCH</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2.5 text-right font-medium">{item.quantity}</td>
-                        <td className="px-3 py-2.5 text-right">${item.cost.toLocaleString('es-CL')}</td>
-                        <td className="px-3 py-2.5 text-right font-bold text-orange-600">${item.total.toLocaleString('es-CL')}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="bg-gray-50 font-bold">
-                      <td colSpan={4} className="px-3 py-3 text-right text-gray-600">
-                        Total ({totalOk} productos válidos
-                        {totalInactive > 0 && <span className="text-orange-600"> — {totalInactive} excluido(s) por inactivo</span>}
-                        ):
-                      </td>
-                      <td className="px-3 py-3 text-right">
-                        {previewItems.filter(i => i.status === 'ok').reduce((s, i) => s + i.quantity, 0)} uds
-                      </td>
-                      <td className="px-3 py-3"></td>
-                      <td className="px-3 py-3 text-right text-primary">
-                        ${grandTotal.toLocaleString('es-CL')}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="px-4 py-4 border-t border-gray-100 bg-gray-50 flex flex-wrap gap-3 items-center justify-between">
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleExportPreviewExcel}
-                    className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 transition-colors"
-                  >
-                    <FileDown className="h-4 w-4 mr-2" />
-                    Exportar Preview Excel
-                  </button>
-                  <button
-                    onClick={handleCopyJson}
-                    className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 transition-colors"
-                  >
-                    <Copy className="h-4 w-4 mr-2" />
-                    {copied ? '¡Copiado!' : 'Copiar JSON'}
-                  </button>
-                  <button
-                    onClick={handleRevalidate}
-                    disabled={revalidating || totalInactive === 0}
-                    className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    title={totalInactive === 0 ? 'No hay productos inactivos para revalidar' : 'Volver a consultar estado en Bsale tras reactivar el producto'}
-                  >
-                    {revalidating ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <AlertTriangle className="h-4 w-4 mr-2" />
-                    )}
-                    {revalidating ? 'Revalidando...' : 'Revalidar'}
-                  </button>
-                </div>
-
+              {/* Global Action Buttons */}
+              <div className="px-4 py-3 border-b border-gray-100 bg-white flex flex-wrap gap-2">
                 <button
-                  onClick={handleSendToBsale}
-                  disabled={!allValid || sending || sendResult?.success}
-                  className={`inline-flex items-center px-5 py-2.5 text-sm font-medium rounded-lg transition-colors shadow-sm ${
-                    sendResult?.success
-                      ? 'bg-green-100 text-green-700 cursor-not-allowed'
-                      : allValid && !sending
-                      ? 'bg-green-600 text-white hover:bg-green-700'
-                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  }`}
-                  title={
-                    sendResult?.success
-                      ? 'Recepción ya enviada exitosamente'
-                      : !allValid
-                      ? totalInactive > 0
-                        ? `${totalInactive} producto(s) inactivo(s) en Bsale — reactiva y revalida`
-                        : `Faltan ${totalMissing} SKU(s) por mapear`
-                      : 'Enviar recepción de stock a Bsale'
-                  }
+                  onClick={handleExportPreviewExcel}
+                  className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 transition-colors"
                 >
-                  {sending ? (
+                  <FileDown className="h-4 w-4 mr-2" />
+                  Exportar Preview Excel
+                </button>
+                <button
+                  onClick={handleCopyJson}
+                  className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  {copied ? '¡Copiado!' : 'Copiar JSON'}
+                </button>
+                <button
+                  onClick={handleRevalidate}
+                  disabled={revalidating || globalTotalInactive === 0}
+                  className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={globalTotalInactive === 0 ? 'No hay productos inactivos para revalidar' : 'Volver a consultar estado en Bsale tras reactivar el producto'}
+                >
+                  {revalidating ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : sendResult?.success ? (
-                    <CheckCircle className="h-4 w-4 mr-2" />
                   ) : (
-                    <Send className="h-4 w-4 mr-2" />
+                    <AlertTriangle className="h-4 w-4 mr-2" />
                   )}
-                  {sending ? 'Enviando...' : sendResult?.success ? 'Enviado a Bsale ✓' : 'Enviar a Bsale'}
+                  {revalidating ? 'Revalidando...' : 'Revalidar'}
                 </button>
               </div>
 
-              {/* Send Result */}
-              {sendResult && (
-                <div className={`mx-4 mt-3 p-4 rounded-lg border ${
-                  sendResult.success
-                    ? 'bg-green-50 border-green-200'
-                    : 'bg-red-50 border-red-200'
-                }`}>
-                  <p className={`text-sm font-medium ${
-                    sendResult.success ? 'text-green-800' : 'text-red-800'
-                  }`}>
-                    {sendResult.message}
-                  </p>
-                  {sendResult.details && (
-                    <details className="mt-2">
-                      <summary className="text-xs cursor-pointer hover:underline">
-                        Ver detalle de respuesta
-                      </summary>
-                      <pre className="mt-1 text-xs bg-white p-2 rounded overflow-x-auto max-h-40">
-                        {JSON.stringify(sendResult.details, null, 2)}
-                      </pre>
-                    </details>
-                  )}
-                </div>
-              )}
+              {/* Sección por Factura */}
+              {allGroups.map((group) => {
+                const sending = sendingMap[group.folio] || false;
+                const sendResult = sendResultMap[group.folio];
+                const alreadySent = sendResult?.success;
 
-              {/* JSON Preview (collapsible) */}
-              {jsonPayload && (
-                <details className="mx-4 mb-4">
-                  <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600 py-2">
-                    Ver payload JSON que se enviaría a Bsale
-                  </summary>
-                  <pre className="bg-gray-900 text-green-400 p-4 rounded-lg text-xs overflow-x-auto max-h-64">
-                    {JSON.stringify(jsonPayload, null, 2)}
-                  </pre>
-                </details>
-              )}
+                return (
+                  <div key={group.folio} className="border-b border-gray-100 last:border-b-0">
+                    {/* Header de Factura */}
+                    <div className="px-4 py-3 bg-indigo-50/50 border-b border-indigo-100 flex flex-wrap gap-3 items-center">
+                      <span className="text-sm font-bold text-indigo-900">
+                        📄 Factura N° {group.folio}
+                      </span>
+                      <div className="flex gap-2 ml-auto">
+                        <span className="inline-flex items-center text-xs bg-green-50 text-green-700 px-2.5 py-1 rounded-full font-medium">
+                          <CheckCircle className="h-3 w-3 mr-1" /> {group.totalOk} listos
+                        </span>
+                        {group.totalMissing > 0 && (
+                          <span className="inline-flex items-center text-xs bg-red-50 text-red-700 px-2.5 py-1 rounded-full font-medium">
+                            <XCircle className="h-3 w-3 mr-1" /> {group.totalMissing} sin SKU
+                          </span>
+                        )}
+                        {group.totalZero > 0 && (
+                          <span className="inline-flex items-center text-xs bg-amber-50 text-amber-700 px-2.5 py-1 rounded-full font-medium">
+                            <AlertTriangle className="h-3 w-3 mr-1" /> {group.totalZero} cant. 0
+                          </span>
+                        )}
+                        {group.totalInactive > 0 && (
+                          <span className="inline-flex items-center text-xs bg-orange-50 text-orange-700 px-2.5 py-1 rounded-full font-medium">
+                            <AlertTriangle className="h-3 w-3 mr-1" /> {group.totalInactive} inactivo(s)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Warning Banner por Factura */}
+                    {group.totalMissing > 0 && (
+                      <div className="mx-4 mt-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+                        <p className="text-sm text-red-700">
+                          <strong>{group.totalMissing} producto(s)</strong> no tienen SKU de Bsale mapeado.
+                          Estos ítems <strong>no se incluirán</strong> en el ingreso de stock.
+                        </p>
+                      </div>
+                    )}
+                    {group.totalInactive > 0 && (
+                      <div className="mx-4 mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 text-orange-600 mt-0.5 flex-shrink-0" />
+                        <div className="text-sm text-orange-800">
+                          <p className="font-bold">
+                            ⚠ No se puede enviar: {group.totalInactive} producto(s) inactivo(s) en Bsale
+                          </p>
+                          <ul className="mt-1 list-disc list-inside">
+                            {group.previewItems
+                              .filter(i => i.status === 'inactive_in_bsale')
+                              .map((item, idx) => (
+                                <li key={idx}>
+                                  {item.productName} — <span className="font-mono text-xs">{item.internalSku}</span>
+                                </li>
+                              ))}
+                          </ul>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Tabla de la Factura */}
+                    <div className="overflow-x-auto p-4">
+                      <table className="w-full text-sm text-left">
+                        <thead className="text-xs uppercase bg-gray-100 text-gray-600">
+                          <tr>
+                            <th className="px-3 py-2.5 w-8"></th>
+                            <th className="px-3 py-2.5">Cód. Prov.</th>
+                            <th className="px-3 py-2.5">Producto</th>
+                            <th className="px-3 py-2.5">SKU Bsale</th>
+                            <th className="px-3 py-2.5 text-right">Cantidad</th>
+                            <th className="px-3 py-2.5 text-right">Costo Unit.</th>
+                            <th className="px-3 py-2.5 text-right font-bold text-orange-600">Total Línea</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {group.previewItems.map((item, idx) => (
+                            <tr
+                              key={idx}
+                              className={`border-b transition-colors ${
+                                item.status === 'missing_sku'
+                                  ? 'bg-red-50/50 hover:bg-red-50'
+                                  : item.status === 'zero_qty'
+                                  ? 'bg-amber-50/50 hover:bg-amber-50'
+                                  : item.status === 'inactive_in_bsale'
+                                  ? 'bg-orange-50/50 hover:bg-orange-50'
+                                  : 'bg-white hover:bg-gray-50'
+                              }`}
+                            >
+                              <td className="px-3 py-2.5 text-center">
+                                {item.status === 'ok' && <CheckCircle className="h-4 w-4 text-green-500" />}
+                                {item.status === 'missing_sku' && <XCircle className="h-4 w-4 text-red-500" />}
+                                {item.status === 'zero_qty' && <AlertTriangle className="h-4 w-4 text-amber-500" />}
+                                {item.status === 'inactive_in_bsale' && <AlertTriangle className="h-4 w-4 text-orange-600" />}
+                              </td>
+                              <td className="px-3 py-2.5 font-mono text-xs text-gray-500">{item.supplierCode}</td>
+                              <td className="px-3 py-2.5 text-gray-800 font-medium">{item.productName}</td>
+                              <td className="px-3 py-2.5 font-mono text-xs">
+                                {item.internalSku ? (
+                                  <span className="text-green-700 bg-green-50 px-2 py-0.5 rounded">{item.internalSku}</span>
+                                ) : (
+                                  <span className="text-red-600 bg-red-50 px-2 py-0.5 rounded">SIN MATCH</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2.5 text-right font-medium">{item.quantity}</td>
+                              <td className="px-3 py-2.5 text-right">${item.cost.toLocaleString('es-CL')}</td>
+                              <td className="px-3 py-2.5 text-right font-bold text-orange-600">${item.total.toLocaleString('es-CL')}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="bg-gray-50 font-bold">
+                            <td colSpan={4} className="px-3 py-3 text-right text-gray-600">
+                              Total ({group.totalOk} válidos
+                              {group.totalInactive > 0 && <span className="text-orange-600"> — {group.totalInactive} excluido(s)</span>}):
+                            </td>
+                            <td className="px-3 py-3 text-right">
+                              {group.previewItems.filter(i => i.status === 'ok').reduce((s, i) => s + i.quantity, 0)} uds
+                            </td>
+                            <td className="px-3 py-3"></td>
+                            <td className="px-3 py-3 text-right text-primary">
+                              ${group.grandTotal.toLocaleString('es-CL')}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+
+                    {/* Botones por Factura */}
+                    <div className="px-4 py-4 border-t border-gray-100 bg-gray-50 flex flex-wrap gap-3 items-center justify-between">
+                      <div className="flex gap-2">
+                        {group.jsonPayload && (
+                          <details className="text-xs">
+                            <summary className="text-gray-400 cursor-pointer hover:text-gray-600 py-1">
+                              Ver JSON
+                            </summary>
+                            <pre className="bg-gray-900 text-green-400 p-2 rounded-lg text-xs overflow-x-auto max-h-40 mt-1">
+                              {JSON.stringify(group.jsonPayload, null, 2)}
+                            </pre>
+                          </details>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={() => handleSendToBsale(group.folio)}
+                        disabled={!group.allValid || sending || alreadySent}
+                        className={`inline-flex items-center px-5 py-2.5 text-sm font-medium rounded-lg transition-colors shadow-sm ${
+                          alreadySent
+                            ? 'bg-green-100 text-green-700 cursor-not-allowed'
+                            : group.allValid && !sending
+                            ? 'bg-green-600 text-white hover:bg-green-700'
+                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        }`}
+                        title={
+                          alreadySent
+                            ? 'Recepción ya enviada exitosamente'
+                            : !group.allValid
+                            ? group.totalInactive > 0
+                              ? `${group.totalInactive} producto(s) inactivo(s) en Bsale — reactiva y revalida`
+                              : `Faltan ${group.totalMissing} SKU(s) por mapear`
+                            : 'Enviar recepción de stock a Bsale'
+                        }
+                      >
+                        {sending ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : alreadySent ? (
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                        ) : (
+                          <Send className="h-4 w-4 mr-2" />
+                        )}
+                        {sending ? 'Enviando...' : alreadySent ? 'Enviado ✓' : 'Enviar a Bsale'}
+                      </button>
+                    </div>
+
+                    {/* Send Result por Factura */}
+                    {sendResult && (
+                      <div className={`mx-4 mb-4 p-4 rounded-lg border ${
+                        sendResult.success
+                          ? 'bg-green-50 border-green-200'
+                          : 'bg-red-50 border-red-200'
+                      }`}>
+                        <p className={`text-sm font-medium ${
+                          sendResult.success ? 'text-green-800' : 'text-red-800'
+                        }`}>
+                          {sendResult.message}
+                        </p>
+                        {sendResult.details && (
+                          <details className="mt-2">
+                            <summary className="text-xs cursor-pointer hover:underline">
+                              Ver detalle de respuesta
+                            </summary>
+                            <pre className="mt-1 text-xs bg-white p-2 rounded overflow-x-auto max-h-40">
+                              {JSON.stringify(sendResult.details, null, 2)}
+                            </pre>
+                          </details>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </>
           )}
         </div>
