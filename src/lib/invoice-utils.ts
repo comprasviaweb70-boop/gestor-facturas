@@ -256,12 +256,11 @@ export function detectAlcoholTaxRate(nombreProducto: string): number {
 
 /**
  * Detecta el multiplicador de packs para productos de COMERCIAL CCU S.A.
- * Reglas:
+ * Reglas (en orden de prioridad):
  * - E (prioridad): CACHANTUN en nombre → ×12
- * - D: Número > 999 antes de X → ignorar número antes de X, usar solo número tras X
  * - C: `{n}PF X{m}` o `{n}PK X{m}` → n × m
- * - A: `nXn` (sin volumen grande) → n₁ × n₂
  * - B: `{n}PF` o `{n}PC` → n
+ * - D: Número > 999 antes de X → ignorar número antes de X, usar solo número tras X
  * - F: Sin patrón reconocible → 6 (nunca 0)
  */
 export function detectCcuPackMultiplier(nombreProducto: string): number {
@@ -272,18 +271,6 @@ export function detectCcuPackMultiplier(nombreProducto: string): number {
     return 12;
   }
 
-  // Regla D: Número > 999 antes de X → ignorar número antes de X, usar solo número tras X
-  const reglaD = nombreUpper.match(/(\d+)X(\d+)/);
-  if (reglaD) {
-    const numeroAntesX = parseInt(reglaD[1], 10);
-    const numeroDespuesX = parseInt(reglaD[2], 10);
-    
-    // Si el número antes de X es > 999, usamos solo el número después de X
-    if (numeroAntesX > 999) {
-      return numeroDespuesX || 6; // Si no hay número después de X, usamos 6
-    }
-  }
-
   // Regla C: `{n}PF X{m}` o `{n}PK X{m}` → n × m
   const reglaC = nombreUpper.match(/(\d+)(?:PF|PK)\s*X\s*(\d+)/);
   if (reglaC) {
@@ -292,26 +279,21 @@ export function detectCcuPackMultiplier(nombreProducto: string): number {
     return n * m;
   }
 
-  // Regla A: `nXn` (sin volumen grande) → n₁ × n₂
-  // Verificamos que no haya un volumen grande (>1000) en el nombre para aplicar esta regla
-  const reglaA = nombreUpper.match(/(\d+)X(\d+)/);
-  if (reglaA) {
-    const n1 = parseInt(reglaA[1], 10);
-    const n2 = parseInt(reglaA[2], 10);
-    
-    // Verificamos que ninguno de los números sea un volumen grande (>1000)
-    const tieneVolumenGrande = nombreUpper.includes('ML') || nombreUpper.includes('L') || 
-                               nombreUpper.includes('LT') || nombreUpper.includes('LITRO');
-    
-    if (!tieneVolumenGrande && n1 <= 1000 && n2 <= 1000) {
-      return n1 * n2;
-    }
-  }
-
   // Regla B: `{n}PF` o `{n}PC` → n
   const reglaB = nombreUpper.match(/(\d+)(?:PF|PC)\b/);
   if (reglaB) {
     return parseInt(reglaB[1], 10);
+  }
+
+  // Regla D: Número > 999 antes de X → ignorar número antes de X, usar solo número tras X
+  const reglaD = nombreUpper.match(/(\d+)X(\d+)/);
+  if (reglaD) {
+    const numeroAntesX = parseInt(reglaD[1], 10);
+    const numeroDespuesX = parseInt(reglaD[2], 10);
+    
+    if (numeroAntesX > 999) {
+      return numeroDespuesX || 6;
+    }
   }
 
   // Regla F: Sin patrón reconocible → 6
