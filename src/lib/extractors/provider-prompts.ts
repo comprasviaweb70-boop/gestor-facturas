@@ -10,6 +10,14 @@ Neto Total | Flete Total | I.V.A. | Adicional (I.A.B.A.)
 
 La columna I.V.A. está SIEMPRE ubicada entre "Flete Total" (a su izquierda) y "Adicional" (a su derecha). DEBES ignorarla por completo.
 
+Ejemplo concreto de una fila real en la factura (usa este patrón visual como referencia):
+- Producto: COCA COLA X06 REF 1500 CC
+- Columnas monetarias de izquierda a derecha: Neto Total = 4.299 | Flete Total = 1.460 | I.V.A. = 817 | Adicional = 774
+→ subtotalNeto: 4299
+→ fleteTotal: 1460
+→ impuestosAdicionales: 774
+→ La columna I.V.A. (817) NO se usa en ningún campo.
+
 Formato requerido:
 {
   "rutEmisor": "RUT del emisor (ej: 93.281.000-K)",

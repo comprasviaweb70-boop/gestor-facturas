@@ -44,7 +44,9 @@ Sistema integral de gestión de facturas electrónicas chilenas (DTE) y mapeo de
 | **BAT Chile** | 885.029.000-? | Pack auto (detecta multiplicador en nombre) | — | — | XML |
  | **Coca-Cola Embonor** | 93.281.000-K | Pack 6×4 (antes×después) desde nombre | — | — | Imagen/PDF |
 
-> **Nota técnica (Jul 2026)**: El modelo de visión confundía frecuentemente la columna **I.V.A.** con **Flete Total** en facturas de Coca-Cola, porque I.V.A. está físicamente entre ambas columnas (`Neto Total | Flete Total | I.V.A. | Adicional`). El prompt fue reforzado con el orden visual exacto, instrucciones de validación fila por fila y una heurística de auto-corrección ("si fleteTotal ≈ 19% del neto, estás leyendo I.V.A."). No se agregó post-proceso numérico para respetar la política de "copiar directo de la factura, sin recalcular".
+> **Nota técnica (Jul 2026)**: El modelo de visión confundía frecuentemente la columna **I.V.A.** con **Flete Total** e **impuestosAdicionales** en facturas de Coca-Cola, porque I.V.A. está físicamente entre ambas columnas (`Neto Total | Flete Total | I.V.A. | Adicional`). Se aplicaron dos capas de corrección:
+> 1. **Prompt reforzado**: Incluye el orden visual exacto de las 4 columnas, ejemplo concreto de fila real con valores (Neto=4299, Flete=1460, IVA=817, Adicional=774), y validación fila por fila antes de responder.
+> 2. **Post-proceso defensivo (`cocaColaPostProcessRule`)**: Si `impuestosAdicionales` o `fleteTotal` coinciden numéricamente con el IVA esperado (`round(neto × 0.19)` ± 2 pesos), se corrige a 0 y se emite un warning. Esto protege productos como BENEDICTINO (agua) que no llevan Adicional, sin recalcular impuestos legítimos del negocio.
 | **VCT** | 85.037.900-9 | CAJ multiplica × packSize; BOT usa cantidad directa | — | Servicio logístico se extrae como flete y distribuye proporcionalmente | Imagen/PDF |
 | **IDEAL** | 82.623.500-4 | — | — | — | Imagen/PDF |
 | **CCU** | 99.554.560-8 | Pack desde nombre (ej: 6PFX4) | 4-pasos: IA pie → grado alcoh. → keywords BD → fallback 18% | Cálculo de flete desde PTU (precioBrutoUnitario) | Imagen/PDF |
