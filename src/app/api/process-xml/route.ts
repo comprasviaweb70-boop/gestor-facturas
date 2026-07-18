@@ -97,30 +97,32 @@ export async function POST(request: Request) {
     const provider = fileBase64 ? getProviderByRut(knownRut) : undefined;
     const docPromptOverride = fileBase64 ? getProviderImagePrompt(provider?.documentPromptKey) : undefined;
 
-    // 2. Extracción: Gemini primario para imagen/PDF (mejor resultado en layout tabular).
-    // XML: Claude primario, Gemini fallback.
+    // 2. Extracción: CCU (imagen/PDF) usa Gemini primario por mejor resultado en layouts tabulares.
+    // Resto de proveedores: Claude primario, Gemini fallback.
+    // XML siempre: Claude primario, Gemini fallback.
+    const isCcuImage = fileBase64 && provider?.documentPromptKey === 'ccu';
     let extractionResult;
     let extractorUsed: 'claude' | 'gemini' = 'claude';
     let extractionWarning: string | undefined;
 
-    if (fileBase64) {
-      // Imagen/PDF: Gemini primario, Claude fallback
+    if (isCcuImage) {
+      // CCU (PDF/imagen): Gemini primario, Claude fallback
       try {
         extractionResult = await extractWithGemini({ xmlContent, fileBase64, fileType, docPromptOverride });
         extractorUsed = 'gemini';
       } catch (geminiErr: any) {
-        console.warn('Gemini falló, intentando con Claude como fallback:', geminiErr.message);
+        console.warn('Gemini falló para CCU, intentando con Claude:', geminiErr.message);
         try {
           extractionResult = await extractWithClaude({ xmlContent, fileBase64, fileType, docPromptOverride });
         } catch (claudeErr: any) {
           const preview = (claudeErr.message || '').substring(0, 300);
           return NextResponse.json({
-            error: `Error al procesar factura (Gemini y Claude fallaron): ${preview}...`,
+            error: `Error al procesar factura CCU (Gemini y Claude fallaron): ${preview}...`,
           }, { status: 500 });
         }
       }
     } else {
-      // XML: Claude primario, Gemini fallback
+      // Resto (incluyendo XML): Claude primario, Gemini fallback
       try {
         extractionResult = await extractWithClaude({ xmlContent, fileBase64, fileType, docPromptOverride });
       } catch (claudeErr: any) {
