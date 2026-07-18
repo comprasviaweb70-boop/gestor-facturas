@@ -1,5 +1,5 @@
 import { PipelineContext, SupplierRule } from '../types/invoice';
-import { calcularFleteOcultoBruto } from '../invoice-utils';
+import { calcularFleteOcultoBruto, detectAlcoholTaxRate } from '../invoice-utils';
 import { matchesProvider } from './multiplier-rules';
 
 export const hiperkorTaxRule: SupplierRule = {
@@ -113,40 +113,85 @@ export const ccuTaxRule: SupplierRule = {
   nameContains: 'CCU',
   apply: (ctx) => {
     ctx.items.forEach((item) => {
-      const nombreUpper = (item.nombre || '').toUpperCase();
-      
-      // Determinar tasa de impuesto según clasificación fiscal
-      let tasa = 0.18; // Default 18%
-      
-      if (nombreUpper.includes('CERVEZA')) {
-        tasa = 0.205; // 20.5%
-      } else if (nombreUpper.includes('ZERO') || nombreUpper.includes('SUGARFREE') || 
-                 nombreUpper.includes('MAS') || nombreUpper.includes('SEVEN UP') || 
-                 nombreUpper.includes('SPRIM')) {
-        tasa = 0.10; // 10%
-      } else if (nombreUpper.includes('AGUA') || nombreUpper.includes('GATORADE') || 
-                 nombreUpper.includes('CACHANTUN') || nombreUpper.includes('CATUN') || 
-                 nombreUpper.includes('WATTS') || nombreUpper.includes('JUGO') || 
-                 nombreUpper.includes('NECTAR')) {
-        tasa = 0; // 0%
+      const nombreUpper = (item.nombre || '').toUpperCase().trim();
+      let tasa: number | null = null;
+
+      // === Prioridad 1: Tasa extraída por IA desde el pie de la factura ===
+      const tasaIA = Number(item.tasaImpuestoAdicional);
+      if (tasaIA > 0) {
+        tasa = tasaIA;
+        console.log(`[CCU Tax P1-IA] "${item.nombre}" | tasa desde factura: ${tasa}`);
       }
-      
+
+      // === Prioridad 2: Grado alcohólico en el nombre del producto ===
+      if (tasa === null) {
+        const tasaAlcohol = detectAlcoholTaxRate(item.nombre || '');
+        if (tasaAlcohol > 0) {
+          tasa = tasaAlcohol;
+          console.log(`[CCU Tax P2-Alcohol] "${item.nombre}" | tasa por grado alcohólico: ${tasa}`);
+        }
+      }
+
+      // === Prioridad 3: Palabras clave en taxRates (BD) + reglas hardcodeadas ===
+      if (tasa === null) {
+        // 3a: Buscar en taxRates desde BD
+        for (const rate of ctx.taxRates) {
+          const keyword = (rate.product_type || '').trim().toUpperCase();
+          if (keyword && nombreUpper.includes(keyword)) {
+            tasa = rate.tax_percentage / 100;
+            console.log(`[CCU Tax P3a-taxRates] "${item.nombre}" | keyword "${keyword}" → ${tasa}`);
+            break;
+          }
+        }
+
+        // 3b: Reglas hardcodeadas si no se encontró en BD
+        if (tasa === null) {
+          if (nombreUpper.includes('CERVEZA')) {
+            tasa = 0.205;
+          } else if (nombreUpper.includes('ZERO') || nombreUpper.includes('SUGARFREE') ||
+                     nombreUpper.includes('MAS') || nombreUpper.includes('SEVEN UP') ||
+                     nombreUpper.includes('SPRIM')) {
+            tasa = 0.10;
+          } else if (nombreUpper.includes('AGUA') || nombreUpper.includes('GATORADE') ||
+                     nombreUpper.includes('CACHANTUN') || nombreUpper.includes('CATUN') ||
+                     nombreUpper.includes('WATTS') || nombreUpper.includes('JUGO') ||
+                     nombreUpper.includes('NECTAR')) {
+            tasa = 0;
+          }
+          if (tasa !== null) {
+            console.log(`[CCU Tax P3b-hardcoded] "${item.nombre}" | tasa: ${tasa}`);
+          }
+        }
+      }
+
+      // === Prioridad 4: "GATO" (pero NO "GATORADE") → VINO → 20.5% ===
+      if (tasa === null) {
+        if (nombreUpper.includes('GATO') && !nombreUpper.includes('GATORADE')) {
+          tasa = 0.205;
+          console.log(`[CCU Tax P4-GATO] "${item.nombre}" | clasificado como VINO → ${tasa}`);
+        }
+      }
+
+      // === Fallback: default 18% ===
+      if (tasa === null) {
+        tasa = 0.18;
+        console.log(`[CCU Tax Fallback] "${item.nombre}" | default → ${tasa}`);
+      }
+
       // Calcular impuestos adicionales
       item.impuestosAdicionales = Math.round((item.subtotalNeto || 0) * tasa);
-      
+
       // Calcular flete basado en PTU (precioBrutoUnitario)
-      // Fórmula: fleteTotal = (cantidad × PTU − impuestosAdicionales − subtotalNeto × 1.19) / 1.19
       const cantidad = item.cantidad || 1;
       const ptu = item.precioBrutoUnitario || 0;
       const subtotalConIva = (item.subtotalNeto || 0) * 1.19;
-      
+
       item.fleteTotal = (cantidad * ptu - item.impuestosAdicionales - subtotalConIva) / 1.19;
-      
-      // Verificar si el flete es negativo o cero, lo que indica OCR incorrecto
+
       if (item.fleteTotal <= 0) {
         console.warn(`Advertencia: Flete calculado ≤ 0 para ${item.nombre}. Posible error en OCR de PTU o Subtotal.`);
       }
-      
+
       console.log(`CCU: ${item.nombre} | PTU: ${ptu}, Cantidad: ${cantidad}, SubtotalNeto: ${item.subtotalNeto}, Impuestos: ${item.impuestosAdicionales}, Flete: ${item.fleteTotal}`);
     });
     return ctx;
