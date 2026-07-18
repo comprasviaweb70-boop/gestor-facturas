@@ -171,8 +171,43 @@ export const vctPostProcessRule: SupplierRule = {
   },
 };
 
+export const bundorPostProcessRule: SupplierRule = {
+  stage: 'post-process',
+  rutPrefix: '76424467',
+  nameContains: 'BUNDOR',
+  apply: (ctx) => {
+    const fleteIndices: number[] = [];
+    let totalFlete = 0;
+
+    ctx.items.forEach((item, index) => {
+      const nombre = (item.nombre || '').toUpperCase();
+      if (nombre.includes('FLETE') || nombre.includes('DELIVERY')) {
+        totalFlete += item.subtotalNeto || ((item.cantidad || 0) * (item.precioUnitario || 0));
+        fleteIndices.push(index);
+      }
+    });
+
+    if (fleteIndices.length > 0) {
+      for (let i = fleteIndices.length - 1; i >= 0; i--) {
+        ctx.items.splice(fleteIndices[i], 1);
+      }
+    }
+
+    if (totalFlete > 0 && ctx.items.length > 0) {
+      const itemsConFlete = distributeFreight(ctx.items, totalFlete);
+      ctx.items.forEach((item, idx) => {
+        item.fleteTotal = itemsConFlete[idx].fleteTotal;
+      });
+      console.log(`BUNDOR: Flete total ${totalFlete} distribuido entre ${ctx.items.length} ítems`);
+    }
+
+    return ctx;
+  },
+};
+
 export const postProcessRules: SupplierRule[] = [
   madCharliesPostProcessRule,
   dimakPostProcessRule,
   vctPostProcessRule,
+  bundorPostProcessRule,
 ];

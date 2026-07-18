@@ -1,0 +1,53 @@
+{
+  "rutEmisor": "76.424.467-2",
+  "folio": "27959",
+  "razonSocial": "CERVECERIA BUNDOR SPA",
+  "totalNetoFactura": 37065,
+  "items": [
+    {
+      "nombre": "CERVEZA BUNDOR BELZEBOO (11°G.L) BOTELLA 330CC",
+      "codigo": "S/C",
+      "cantidad": 8,
+      "unidad": "UN",
+      "precioUnitario": 0,
+      "precioBrutoUnitario": 0,
+      "subtotalNeto": 10655,
+      "impuestosAdicionales": 0,
+      "fleteTotal": 0
+    },
+    {
+      "nombre": "CERVEZA BUNDOR NESSIE (8°G.L) BOTELLA 330CC",
+      "codigo": "S/C",
+      "cantidad": 8,
+      "unidad": "UN",
+      "precioUnitario": 0,
+      "precioBrutoUnitario": 0,
+      "subtotalNeto": 10655,
+      "impuestosAdicionales": 0,
+      "fleteTotal": 0
+    },
+    {
+      "nombre": "CERVEZA BUNDOR KALI (6,5°G.L) BOTELLA 330CC",
+      "codigo": "S/C",
+      "cantidad": 8,
+      "unidad": "UN",
+      "precioUnitario": 0,
+      "precioBrutoUnitario": 0,
+      "subtotalNeto": 10655,
+      "impuestosAdicionales": 0,
+      "fleteTotal": 0
+    },
+    {
+      "nombre": "FLETE MERCADERIA",
+      "codigo": "S/C",
+      "cantidad": 1,
+      "unidad": "UN",
+      "precioUnitario": 0,
+      "precioBrutoUnitario": 0,
+      "subtotalNeto": 5100,
+      "impuestosAdicionales": 0,
+      "fleteTotal": 0
+    }
+  ],
+  "descuentoGlobal": null
+}

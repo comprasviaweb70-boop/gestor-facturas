@@ -42,12 +42,47 @@ export const hiperkorTaxRule: SupplierRule = {
   },
 };
 
+export const bundorTaxRule: SupplierRule = {
+  stage: 'tax',
+  rutPrefix: '76424467',
+  nameContains: 'BUNDOR',
+  apply: (ctx) => {
+    ctx.items.forEach((item) => {
+      const nombreUpper = (item.nombre || '').toUpperCase();
+
+      // Saltar líneas de flete/delivery
+      if (nombreUpper.includes('FLETE') || nombreUpper.includes('DELIVERY')) {
+        item.impuestosAdicionales = 0;
+        return;
+      }
+
+      let taxRate = detectAlcoholTaxRate(item.nombre);
+
+      if (taxRate === 0) {
+        // Fallback por taxRates de BD
+        for (const rate of ctx.taxRates) {
+          const keyword = (rate.product_type || '').trim().toUpperCase();
+          if (keyword && nombreUpper.includes(keyword)) {
+            taxRate = rate.tax_percentage / 100;
+            break;
+          }
+        }
+      }
+
+      item.impuestosAdicionales = Math.round((item.subtotalNeto || 0) * taxRate);
+      console.log(`BUNDOR: ${item.nombre} -> ILA ${(taxRate * 100).toFixed(1)}% = ${item.impuestosAdicionales}`);
+    });
+    return ctx;
+  },
+};
+
 export const generalTaxRule: SupplierRule = {
   stage: 'tax',
   apply: (ctx) => {
     if (matchesProvider(ctx, '78753810', 'HIPER')) return ctx;
     if (matchesProvider(ctx, '93281000', 'COCA')) return ctx;
     if (matchesProvider(ctx, '99554560', 'CCU')) return ctx;
+    if (matchesProvider(ctx, '76424467', 'BUNDOR')) return ctx;
 
     ctx.items.forEach((item) => {
       if (!item.impuestosAdicionales || item.impuestosAdicionales === 0) {
@@ -210,6 +245,7 @@ export const ccuTaxRule: SupplierRule = {
 export const taxRules: SupplierRule[] = [
   hiperkorTaxRule,
   ccuTaxRule,
+  bundorTaxRule,
   generalTaxRule,
   zapataTaxRule,
 ];

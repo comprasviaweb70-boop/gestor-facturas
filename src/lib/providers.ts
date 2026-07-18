@@ -37,6 +37,13 @@ export const KNOWN_IMAGE_PROVIDERS: KnownProvider[] = [
     rutNormalized: '995545608',
     documentPromptKey: 'ccu',
   },
+  {
+    id: 'bundor',
+    name: 'Cervecería Bundor SPA',
+    rut: '76.424.467-2',
+    rutNormalized: '764244672',
+    documentPromptKey: 'bundor',
+  },
 ];
 
 export function getProviderByRut(rut?: string): KnownProvider | undefined {
