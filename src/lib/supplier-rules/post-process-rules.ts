@@ -205,40 +205,7 @@ export const bundorPostProcessRule: SupplierRule = {
   },
 };
 
-export const cocaColaPostProcessRule: SupplierRule = {
-  stage: 'post-process',
-  rutPrefix: '93281000',
-  nameContains: 'COCA',
-  apply: (ctx) => {
-    ctx.items.forEach((item) => {
-      const neto = item.subtotalNeto || 0;
-      const adicional = item.impuestosAdicionales || 0;
-      const flete = item.fleteTotal || 0;
-      // El IVA chileno es exactamente 19%. Si el modelo copió IVA en lugar de Adicional
-      // o Flete, el valor será muy cercano a neto * 0.19 redondeado.
-      const ivaEsperado = Math.round(neto * 0.19);
-      const tolerancia = 2; // ±2 pesos de margen absoluto
-
-      if (adicional > 0 && Math.abs(adicional - ivaEsperado) <= tolerancia) {
-        const nombre = item.nombre || 'Ítem sin nombre';
-        console.warn(`[Coca-Cola] impuestosAdicionales (${adicional}) coincide con IVA (${ivaEsperado}) para "${nombre}". Se corrige a 0.`);
-        item.impuestosAdicionales = 0;
-        ctx.warnings.push(`Coca-Cola: El impuesto adicional de "${nombre}" parecía ser IVA (${adicional}); se corrigió a 0. Verificar manualmente si este producto realmente tiene Adicional.`);
-      }
-
-      if (flete > 0 && Math.abs(flete - ivaEsperado) <= tolerancia) {
-        const nombre = item.nombre || 'Ítem sin nombre';
-        console.warn(`[Coca-Cola] fleteTotal (${flete}) coincide con IVA (${ivaEsperado}) para "${nombre}". Se corrige a 0.`);
-        item.fleteTotal = 0;
-        ctx.warnings.push(`Coca-Cola: El flete de "${nombre}" parecía ser IVA (${flete}); se corrigió a 0. Verificar manualmente.`);
-      }
-    });
-    return ctx;
-  },
-};
-
 export const postProcessRules: SupplierRule[] = [
-  cocaColaPostProcessRule,
   madCharliesPostProcessRule,
   dimakPostProcessRule,
   vctPostProcessRule,
