@@ -266,8 +266,19 @@ export function detectAlcoholTaxRate(nombreProducto: string): number {
 export function detectCcuPackMultiplier(nombreProducto: string): number {
   const nombreUpper = (nombreProducto || '').toUpperCase().trim();
 
-  // Regla E (prioridad): CACHANTUN en nombre → ×12
+  // Regla E (prioridad): CACHANTUN en nombre → ×12 (o el valor de {n}PF/{n}PC si existe)
   if (nombreUpper.includes('CACHANTUN')) {
+    // Primero buscar patrón específico {n}PF o {n}PC en el nombre
+    const reglaB = nombreUpper.match(/(\d+)(?:PF|PC)\b/);
+    if (reglaB) {
+      // Verificar que después del PF/PC no venga un "X{n}" (ese caso va a Regla C o A)
+      const posMatch = nombreUpper.indexOf(reglaB[0]);
+      const resto = nombreUpper.substring(posMatch + reglaB[0].length);
+      if (!resto.match(/^\s*X\s*\d+/)) {
+        return parseInt(reglaB[1], 10);
+      }
+    }
+    // Si no hay patrón PF/PC específico, usar 12 como default para CACHANTUN
     return 12;
   }
 
