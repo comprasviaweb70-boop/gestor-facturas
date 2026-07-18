@@ -292,16 +292,14 @@ export function detectCcuPackMultiplier(nombreProducto: string): number {
   }
 
   // Regla A: Último número después de la 'X' en la descripción
-  // Ej: "1600X6" → 6, "CERVEZA 6 X" → 6
-  const reglaA = nombreUpper.match(/(\d+)\s*X\s*(\d+)/g);
-  if (reglaA && reglaA.length > 0) {
-    const ultimoMatch = reglaA[reglaA.length - 1];
-    const partes = ultimoMatch.split(/\s*X\s*/i);
-    if (partes.length === 2) {
-      const numeroDespuesX = parseInt(partes[1], 10);
-      if (!isNaN(numeroDespuesX) && numeroDespuesX > 0) {
-        return numeroDespuesX;
-      }
+  // Ej: "1600X6" → 6, "CERVEZA 6 X" → 6, "500CCX12" → 12
+  // Usamos matchAll para obtener todos los grupos de captura y tomar el último
+  const matches = Array.from(nombreUpper.matchAll(/(\d+)\s*X\s*(\d+)/g));
+  if (matches.length > 0) {
+    const ultimoMatch = matches[matches.length - 1];
+    const numeroDespuesX = parseInt(ultimoMatch[2], 10);
+    if (!isNaN(numeroDespuesX) && numeroDespuesX > 0) {
+      return numeroDespuesX;
     }
   }
 
