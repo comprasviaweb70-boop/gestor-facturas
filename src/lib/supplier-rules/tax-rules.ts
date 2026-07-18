@@ -117,19 +117,23 @@ export const ccuTaxRule: SupplierRule = {
       let tasa: number | null = null;
 
       // === Prioridad 1: Tasa extraída por IA desde el pie de la factura ===
-      const tasaIA = Number(item.tasaImpuestoAdicional);
+      const tasaIA = Number(item.tasaImpuestoAdicional) || 0;
       if (tasaIA > 0) {
         tasa = tasaIA;
         console.log(`[CCU Tax P1-IA] "${item.nombre}" | tasa desde factura: ${tasa}`);
       }
 
       // === Prioridad 2: Grado alcohólico en el nombre del producto ===
-      if (tasa === null) {
-        const tasaAlcohol = detectAlcoholTaxRate(item.nombre || '');
-        if (tasaAlcohol > 0) {
-          tasa = tasaAlcohol;
-          console.log(`[CCU Tax P2-Alcohol] "${item.nombre}" | tasa por grado alcohólico: ${tasa}`);
-        }
+      const tasaAlcohol = detectAlcoholTaxRate(item.nombre || '');
+      if (tasa === null && tasaAlcohol > 0) {
+        tasa = tasaAlcohol;
+        console.log(`[CCU Tax P2-Alcohol] "${item.nombre}" | tasa por grado alcohólico: ${tasa}`);
+      }
+
+      // === Confirmación P1+P2: IA=0% y sin grado alcohólico → ILA=0 (evita falsos positivos por keywords) ===
+      if (tasa === null && tasaIA === 0 && tasaAlcohol === 0) {
+        tasa = 0;
+        console.log(`[CCU Tax P1+P2 confirm] "${item.nombre}" | IA=0 + sin alcohol → ILA=0`);
       }
 
       // === Prioridad 3: Palabras clave en taxRates (BD) + reglas hardcodeadas ===
