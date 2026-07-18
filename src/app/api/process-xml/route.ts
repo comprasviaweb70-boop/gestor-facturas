@@ -97,52 +97,75 @@ export async function POST(request: Request) {
     const provider = fileBase64 ? getProviderByRut(knownRut) : undefined;
     const docPromptOverride = fileBase64 ? getProviderImagePrompt(provider?.documentPromptKey) : undefined;
 
-    // 2. Extracción con Claude (fallback a Gemini si falla)
+    // 2. Extracción: Gemini primario para Coca-Cola (imagen/PDF) porque maneja mejor layouts con columnas contiguas.
+    // Para el resto, Claude es primario y Gemini es fallback.
+    const isCocaColaImage = fileBase64 && provider?.documentPromptKey === 'coca-cola-embonor';
     let extractionResult;
     let extractorUsed: 'claude' | 'gemini' = 'claude';
     let extractionWarning: string | undefined;
 
-    try {
-      extractionResult = await extractWithClaude({ xmlContent, fileBase64, fileType, docPromptOverride });
-    } catch (claudeErr: any) {
-      console.warn('Claude falló, intentando con Gemini como fallback:', claudeErr.message);
+    if (isCocaColaImage) {
+      // Coca-Cola: Gemini primario
       try {
         extractionResult = await extractWithGemini({ xmlContent, fileBase64, fileType, docPromptOverride });
         extractorUsed = 'gemini';
       } catch (geminiErr: any) {
-        const preview = (geminiErr.message || '').substring(0, 300);
-        return NextResponse.json({
-          error: `Error al procesar factura (Claude y Gemini fallaron): ${preview}...`,
-        }, { status: 500 });
+        console.warn('Gemini falló para Coca-Cola, intentando con Claude:', geminiErr.message);
+        try {
+          extractionResult = await extractWithClaude({ xmlContent, fileBase64, fileType, docPromptOverride });
+        } catch (claudeErr: any) {
+          const preview = (claudeErr.message || '').substring(0, 300);
+          return NextResponse.json({
+            error: `Error al procesar factura Coca-Cola (Gemini y Claude fallaron): ${preview}...`,
+          }, { status: 500 });
+        }
+      }
+    } else {
+      // Resto de proveedores: Claude primario, Gemini fallback
+      try {
+        extractionResult = await extractWithClaude({ xmlContent, fileBase64, fileType, docPromptOverride });
+      } catch (claudeErr: any) {
+        console.warn('Claude falló, intentando con Gemini como fallback:', claudeErr.message);
+        try {
+          extractionResult = await extractWithGemini({ xmlContent, fileBase64, fileType, docPromptOverride });
+          extractorUsed = 'gemini';
+        } catch (geminiErr: any) {
+          const preview = (geminiErr.message || '').substring(0, 300);
+          return NextResponse.json({
+            error: `Error al procesar factura (Claude y Gemini fallaron): ${preview}...`,
+          }, { status: 500 });
+        }
       }
     }
 
     let { data, sourceFormat, multipleInvoices } = extractionResult;
 
-    // 2b. Validación cruzada de totales para PDF/imagen: si no cuadra, reintentar con Gemini.
+    // 2b. Validación cruzada de totales para PDF/imagen: si no cuadra, reintentar con el modelo alternativo.
     if (fileBase64 && !multipleInvoices && data.totalNetoFactura) {
-      const claudeValidation = validateTotals(data);
-      if (!claudeValidation.valid) {
+      const currentValidation = validateTotals(data);
+      if (!currentValidation.valid) {
         console.warn(
-          `Totales no cuadran con Claude: sum=${claudeValidation.sum}, total=${claudeValidation.total}, diffPct=${(claudeValidation.diffPct * 100).toFixed(1)}%`
+          `Totales no cuadran con ${extractorUsed}: sum=${currentValidation.sum}, total=${currentValidation.total}, diffPct=${(currentValidation.diffPct * 100).toFixed(1)}%`
         );
         try {
-          const geminiResult = await extractWithGemini({ xmlContent, fileBase64, fileType, docPromptOverride });
-          const geminiValidation = validateTotals(geminiResult.data);
-          if (geminiValidation.valid) {
-            console.log('Gemini corrigió la extracción: totales cuadran.');
-            extractionResult = geminiResult;
-            data = geminiResult.data;
-            extractorUsed = 'gemini';
+          const fallbackResult = extractorUsed === 'claude'
+            ? await extractWithGemini({ xmlContent, fileBase64, fileType, docPromptOverride })
+            : await extractWithClaude({ xmlContent, fileBase64, fileType, docPromptOverride });
+          const fallbackValidation = validateTotals(fallbackResult.data);
+          if (fallbackValidation.valid) {
+            console.log(`Extracción alternativa corrigió los totales.`);
+            extractionResult = fallbackResult;
+            data = fallbackResult.data;
+            extractorUsed = extractorUsed === 'claude' ? 'gemini' : 'claude';
           } else {
             console.warn(
-              `Gemini tampoco cuadró: sum=${geminiValidation.sum}, total=${geminiValidation.total}, diffPct=${(geminiValidation.diffPct * 100).toFixed(1)}%`
+              `Extracción alternativa tampoco cuadró: sum=${fallbackValidation.sum}, total=${fallbackValidation.total}, diffPct=${(fallbackValidation.diffPct * 100).toFixed(1)}%`
             );
-            extractionWarning = `Diferencia detectada: suma de ítems (${Math.round(claudeValidation.sum)}) no cuadra con total factura (${Math.round(claudeValidation.total)}). Revisar cantidades y montos manualmente.`;
+            extractionWarning = `Diferencia detectada: suma de ítems (${Math.round(currentValidation.sum)}) no cuadra con total factura (${Math.round(currentValidation.total)}). Revisar cantidades y montos manualmente.`;
           }
-        } catch (geminiRetryErr: any) {
-          console.warn('Retry con Gemini falló tras discrepancia de totales:', geminiRetryErr.message);
-          extractionWarning = `Diferencia detectada: suma de ítems (${Math.round(claudeValidation.sum)}) no cuadra con total factura (${Math.round(claudeValidation.total)}). Revisar cantidades y montos manualmente.`;
+        } catch (fallbackErr: any) {
+          console.warn(`Retry con modelo alternativo falló tras discrepancia de totales:`, fallbackErr.message);
+          extractionWarning = `Diferencia detectada: suma de ítems (${Math.round(currentValidation.sum)}) no cuadra con total factura (${Math.round(currentValidation.total)}). Revisar cantidades y montos manualmente.`;
         }
       }
     }

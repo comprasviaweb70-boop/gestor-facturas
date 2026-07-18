@@ -47,8 +47,12 @@ Reglas críticas:
 - fleteTotal: EXCLUSIVAMENTE el valor de la columna "Flete Total", que está INMEDIATAMENTE a la izquierda de la columna "I.V.A.". Si ves un valor que es aproximadamente el 19% del Neto Total, estás leyendo la columna I.V.A. — corrige y toma el valor que está justo a su izquierda.
 - impuestosAdicionales: EXCLUSIVAMENTE el valor de la columna "Adicional" (I.A.B.A.), que está INMEDIATAMENTE a la derecha de la columna "I.V.A.". Si esa celda está vacía o en blanco, el valor debe ser exactamente 0. NUNCA uses el valor de la columna "I.V.A." ni ninguna otra columna como reemplazo.
 - codigo: si no hay código, usa "S/C".
-- Antes de responder, verifica fila por fila que fleteTotal NO coincida con el valor de la columna I.V.A. y que impuestosAdicionales NO coincida con el valor de I.V.A.
-- Responde ÚNICAMENTE con el objeto JSON válido.`,
+
+INSTRUCCIÓN OBLIGATORIA (chain-of-thought): Antes de escribir el JSON final, DEBES escribir un paso a paso de razonamiento donde, para cada producto, listes EXPLÍCITAMENTE los valores que leíste en cada una de las 4 columnas monetarias con sus nombres: Neto Total, Flete Total, I.V.A., Adicional. Escribe algo como:
+"Producto X: Neto Total = 6390, Flete Total = 322, I.V.A. = 1275 (IGNORADO), Adicional = 2013"
+Esto es OBLIGATORIO. Solo después de ese paso a paso, emite el JSON.
+
+- Responde ÚNICAMENTE con el objeto JSON válido después del razonamiento.`,
 
   'vct': `Actúa como un experto en facturación electrónica chilena. Analiza esta factura de VCT (Comercial Peumo Ltda., R.U.T. 85.037.900-9) y extrae exclusivamente los datos en formato JSON.
 
