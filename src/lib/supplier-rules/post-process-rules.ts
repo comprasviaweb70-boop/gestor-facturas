@@ -205,7 +205,27 @@ export const bundorPostProcessRule: SupplierRule = {
   },
 };
 
+export const cocaColaPostProcessRule: SupplierRule = {
+  stage: 'post-process',
+  rutPrefix: '93281000',
+  nameContains: 'COCA',
+  apply: (ctx) => {
+    ctx.items.forEach((item) => {
+      const nombre = (item.nombre || '').toUpperCase();
+      // Productos de agua/mineral no llevan impuesto adicional (ILA/IABA) en Chile.
+      // Si la IA metió un valor en impuestosAdicionales para estos productos, es un error de lectura.
+      const esAgua = nombre.includes('BENEDICTINO') || nombre.includes('AGUA') || nombre.includes('MINERAL');
+      if (esAgua && (item.impuestosAdicionales || 0) > 0) {
+        console.warn(`[Coca-Cola] Producto de agua "${item.nombre}" tiene impuestosAdicionales = ${item.impuestosAdicionales}. Corrigiendo a 0 (no lleva Adicional).`);
+        item.impuestosAdicionales = 0;
+      }
+    });
+    return ctx;
+  },
+};
+
 export const postProcessRules: SupplierRule[] = [
+  cocaColaPostProcessRule,
   madCharliesPostProcessRule,
   dimakPostProcessRule,
   vctPostProcessRule,
