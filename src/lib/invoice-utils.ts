@@ -260,7 +260,7 @@ export function detectAlcoholTaxRate(nombreProducto: string): number {
  * - E (prioridad): CACHANTUN en nombre → ×12
  * - C: `{n}PF X{m}` o `{n}PK X{m}` → n × m
  * - B: `{n}PF` o `{n}PC` → n
- * - D: Número > 999 antes de X → ignorar número antes de X, usar solo número tras X
+ * - A: Último número después de la 'X' en la descripción (unidad por paquete)
  * - F: Sin patrón reconocible → 6 (nunca 0)
  */
 export function detectCcuPackMultiplier(nombreProducto: string): number {
@@ -285,14 +285,17 @@ export function detectCcuPackMultiplier(nombreProducto: string): number {
     return parseInt(reglaB[1], 10);
   }
 
-  // Regla D: Número > 999 antes de X → ignorar número antes de X, usar solo número tras X
-  const reglaD = nombreUpper.match(/(\d+)X(\d+)/);
-  if (reglaD) {
-    const numeroAntesX = parseInt(reglaD[1], 10);
-    const numeroDespuesX = parseInt(reglaD[2], 10);
-    
-    if (numeroAntesX > 999) {
-      return numeroDespuesX || 6;
+  // Regla A: Último número después de la 'X' en la descripción
+  // Ej: "1600X6" → 6, "CERVEZA 6 X" → 6
+  const reglaA = nombreUpper.match(/(\d+)\s*X\s*(\d+)/g);
+  if (reglaA && reglaA.length > 0) {
+    const ultimoMatch = reglaA[reglaA.length - 1];
+    const partes = ultimoMatch.split(/\s*X\s*/i);
+    if (partes.length === 2) {
+      const numeroDespuesX = parseInt(partes[1], 10);
+      if (!isNaN(numeroDespuesX) && numeroDespuesX > 0) {
+        return numeroDespuesX;
+      }
     }
   }
 
