@@ -114,55 +114,66 @@ export const ccuTaxRule: SupplierRule = {
   apply: (ctx) => {
     ctx.items.forEach((item) => {
       const nombreUpper = (item.nombre || '').toUpperCase().trim();
-      let tasa: number | null = null;
 
-      // === Prioridad 1: Tasa extraída por IA desde el pie de la factura ===
-      const tasaIA = Number(item.tasaImpuestoAdicional) || 0;
-      if (tasaIA > 0) {
-        tasa = tasaIA;
-        console.log(`[CCU Tax P1-IA] "${item.nombre}" | tasa desde factura: ${tasa}`);
-      }
+      // === P1: Tasa extraída por IA desde el pie de la factura ===
+      const tasaP1 = Number(item.tasaImpuestoAdicional) || 0;
 
-      // === Prioridad 2: Grado alcohólico en el nombre del producto ===
-      const tasaAlcohol = detectAlcoholTaxRate(item.nombre || '');
-      if (tasa === null && tasaAlcohol > 0) {
-        tasa = tasaAlcohol;
-        console.log(`[CCU Tax P2-Alcohol] "${item.nombre}" | tasa por grado alcohólico: ${tasa}`);
-      }
+      // === P2: Grado alcohólico en el nombre del producto ===
+      const tasaP2 = detectAlcoholTaxRate(item.nombre || '');
 
-      // === Prioridad 3: Palabras clave en taxRates (BD) + reglas hardcodeadas ===
-      if (tasa === null) {
-        // 3a: Buscar en taxRates desde BD
+      // === P3: Reglas por nombre (keywords BD + hardcoded). Última palabra en discrepancias ===
+      const resolveP3 = (nombre: string): number | null => {
+        // 3a: Reglas hardcodeadas explícitas (más específicas, tienen prioridad)
+        if (nombre.includes('CERVEZA')) return 0.205;
+        if (nombre.includes('ZERO') || nombre.includes('SUGARFREE') ||
+            nombre.includes('MAS') || nombre.includes('SEVEN UP') ||
+            nombre.includes('SPRIM')) return 0.10;
+        if (nombre.includes('AGUA') || nombre.includes('GATORADE') ||
+            nombre.includes('CACHANTUN') || nombre.includes('CATUN') ||
+            nombre.includes('WATTS') || nombre.includes('JUGO') ||
+            nombre.includes('NECTAR')) return 0;
+
+        // 3b: Buscar en taxRates desde BD
         for (const rate of ctx.taxRates) {
           const keyword = (rate.product_type || '').trim().toUpperCase();
-          if (keyword && nombreUpper.includes(keyword)) {
-            tasa = rate.tax_percentage / 100;
-            console.log(`[CCU Tax P3a-taxRates] "${item.nombre}" | keyword "${keyword}" → ${tasa}`);
-            break;
+          if (keyword && nombre.includes(keyword)) {
+            return rate.tax_percentage / 100;
           }
         }
 
-        // 3b: Reglas hardcodeadas si no se encontró en BD
-        if (tasa === null) {
-          if (nombreUpper.includes('CERVEZA')) {
-            tasa = 0.205;
-          } else if (nombreUpper.includes('ZERO') || nombreUpper.includes('SUGARFREE') ||
-                     nombreUpper.includes('MAS') || nombreUpper.includes('SEVEN UP') ||
-                     nombreUpper.includes('SPRIM')) {
-            tasa = 0.10;
-          } else if (nombreUpper.includes('AGUA') || nombreUpper.includes('GATORADE') ||
-                     nombreUpper.includes('CACHANTUN') || nombreUpper.includes('CATUN') ||
-                     nombreUpper.includes('WATTS') || nombreUpper.includes('JUGO') ||
-                     nombreUpper.includes('NECTAR')) {
-            tasa = 0;
-          }
-          if (tasa !== null) {
-            console.log(`[CCU Tax P3b-hardcoded] "${item.nombre}" | tasa: ${tasa}`);
-          }
+        return null;
+      };
+
+      let tasa: number | null = null;
+
+      const p1Active = tasaP1 > 0;
+      const p2Active = tasaP2 > 0;
+
+      if (p1Active && p2Active) {
+        if (tasaP1 === tasaP2) {
+          // P1 y P2 concuerdan → usar ese valor
+          tasa = tasaP1;
+          console.log(`[CCU Tax P1=P2] "${item.nombre}" | tasa concordante: ${tasa}`);
+        } else {
+          // Discrepancia → P3 tiene la última palabra
+          tasa = resolveP3(nombreUpper);
+          console.log(`[CCU Tax Discrepancia] "${item.nombre}" | P1=${tasaP1} vs P2=${tasaP2} → P3=${tasa}`);
+        }
+      } else if (p1Active) {
+        tasa = tasaP1;
+        console.log(`[CCU Tax P1] "${item.nombre}" | tasa IA: ${tasa}`);
+      } else if (p2Active) {
+        tasa = tasaP2;
+        console.log(`[CCU Tax P2] "${item.nombre}" | tasa alcohol: ${tasa}`);
+      } else {
+        // Ni P1 ni P2 → P3 decide
+        tasa = resolveP3(nombreUpper);
+        if (tasa !== null) {
+          console.log(`[CCU Tax P3] "${item.nombre}" | tasa por nombre: ${tasa}`);
         }
       }
 
-      // === Prioridad 4: "GATO" (pero NO "GATORADE") → VINO → 20.5% ===
+      // === P4: "GATO" (pero NO "GATORADE") → VINO → 20.5% ===
       if (tasa === null) {
         if (nombreUpper.includes('GATO') && !nombreUpper.includes('GATORADE')) {
           tasa = 0.205;
