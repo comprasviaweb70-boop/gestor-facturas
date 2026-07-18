@@ -309,10 +309,12 @@ export function detectCcuPackMultiplier(nombreProducto: string): number {
   if (matches.length > 0) {
     const ultimoMatch = matches[matches.length - 1];
     const numeroDespuesX = parseInt(ultimoMatch[2], 10);
+    console.log(`[DEBUG Regla A] "${nombreProducto}" | Matches: ${matches.length} | Último: "${ultimoMatch[0]}" → ${numeroDespuesX}`);
     if (!isNaN(numeroDespuesX) && numeroDespuesX > 0) {
       return numeroDespuesX;
     }
   }
+  console.log(`[DEBUG Regla A] "${nombreProducto}" | Sin match X → fallback 6`);
 
   // Regla F: Sin patrón reconocible → 6
   return 6;
