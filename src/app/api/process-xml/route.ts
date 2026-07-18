@@ -97,31 +97,30 @@ export async function POST(request: Request) {
     const provider = fileBase64 ? getProviderByRut(knownRut) : undefined;
     const docPromptOverride = fileBase64 ? getProviderImagePrompt(provider?.documentPromptKey) : undefined;
 
-    // 2. Extracción: Gemini primario para Coca-Cola (imagen/PDF) porque maneja mejor layouts con columnas contiguas.
-    // Para el resto, Claude es primario y Gemini es fallback.
-    const isCocaColaImage = fileBase64 && provider?.documentPromptKey === 'coca-cola-embonor';
+    // 2. Extracción: Gemini primario para imagen/PDF (mejor resultado en layout tabular).
+    // XML: Claude primario, Gemini fallback.
     let extractionResult;
     let extractorUsed: 'claude' | 'gemini' = 'claude';
     let extractionWarning: string | undefined;
 
-    if (isCocaColaImage) {
-      // Coca-Cola: Gemini primario
+    if (fileBase64) {
+      // Imagen/PDF: Gemini primario, Claude fallback
       try {
         extractionResult = await extractWithGemini({ xmlContent, fileBase64, fileType, docPromptOverride });
         extractorUsed = 'gemini';
       } catch (geminiErr: any) {
-        console.warn('Gemini falló para Coca-Cola, intentando con Claude:', geminiErr.message);
+        console.warn('Gemini falló, intentando con Claude como fallback:', geminiErr.message);
         try {
           extractionResult = await extractWithClaude({ xmlContent, fileBase64, fileType, docPromptOverride });
         } catch (claudeErr: any) {
           const preview = (claudeErr.message || '').substring(0, 300);
           return NextResponse.json({
-            error: `Error al procesar factura Coca-Cola (Gemini y Claude fallaron): ${preview}...`,
+            error: `Error al procesar factura (Gemini y Claude fallaron): ${preview}...`,
           }, { status: 500 });
         }
       }
     } else {
-      // Resto de proveedores: Claude primario, Gemini fallback
+      // XML: Claude primario, Gemini fallback
       try {
         extractionResult = await extractWithClaude({ xmlContent, fileBase64, fileType, docPromptOverride });
       } catch (claudeErr: any) {
