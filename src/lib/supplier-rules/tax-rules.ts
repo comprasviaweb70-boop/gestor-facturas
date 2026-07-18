@@ -147,7 +147,7 @@ export const ccuTaxRule: SupplierRule = {
         console.warn(`Advertencia: Flete calculado ≤ 0 para ${item.nombre}. Posible error en OCR de PTU o Subtotal.`);
       }
       
-      console.log(`CCU: ${item.nombre} -> Tasa: ${tasa}, Impuestos: ${item.impuestosAdicionales}, Flete: ${item.fleteTotal}`);
+      console.log(`CCU: ${item.nombre} | PTU: ${ptu}, Cantidad: ${cantidad}, SubtotalNeto: ${item.subtotalNeto}, Impuestos: ${item.impuestosAdicionales}, Flete: ${item.fleteTotal}`);
     });
     return ctx;
   },
