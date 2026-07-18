@@ -44,9 +44,10 @@ Sistema integral de gestión de facturas electrónicas chilenas (DTE) y mapeo de
 | **BAT Chile** | 885.029.000-? | Pack auto (detecta multiplicador en nombre) | — | — | XML |
  | **Coca-Cola Embonor** | 93.281.000-K | Pack 6×4 (antes×después) desde nombre | — | — | Imagen/PDF |
 
-> **Nota técnica (Jul 2026)**: El modelo de visión confundía frecuentemente la columna **I.V.A.** con **Flete Total** en facturas de Coca-Cola, porque I.V.A. está físicamente entre ambas columnas (`Neto Total | Flete Total | I.V.A. | Adicional`). La corrección final consistió en dos cambios simultáneos:
-> 1. **Prompt reforzado con chain-of-thought**: El modelo DEBE escribir un paso a paso identificando cada columna por nombre y valor antes de emitir el JSON (ej: "Producto X: Neto Total = 6390, Flete Total = 322, I.V.A. = 1275 (IGNORADO), Adicional = 2013"). Esto obliga al modelo a razonar antes de responder.
-> 2. **Extractor invertido**: Para Coca-Cola se usa **Gemini como extractor primario** y Claude como fallback. Gemini (`gemini-2.0-flash`) mostró mejor precisión en layouts con columnas monetarias contiguas. La validación cruzada de totales se hizo genérica: si el primario falla, se intenta con el alternativo sin importar cuál sea.
+> **Nota técnica (Jul 2026)**: El modelo de visión confundía frecuentemente la columna **I.V.A.** con **Flete Total** en facturas de Coca-Cola, porque I.V.A. está físicamente entre ambas columnas (`Neto Total | Flete Total | I.V.A. | Adicional`). La corrección final consistió en tres capas:
+> 1. **Prompt reforzado con chain-of-thought**: El modelo DEBE escribir un paso a paso identificando cada columna por nombre y valor antes de emitir el JSON. Se incluyeron ejemplos concretos de filas CON Adicional (Coca-Cola) y SIN Adicional (BENEDICTINO = 0).
+> 2. **Extractor invertido**: Para Coca-Cola se usa **Gemini como extractor primario** y Claude como fallback. Gemini manejó mejor los layouts con columnas contiguas.
+> 3. **Post-proceso conservador (`cocaColaPostProcessRule`)**: Únicamente para productos de agua (BENEDICTINO, AGUA, MINERAL) donde sabemos con certeza que no llevan Adicional, si la IA metió un valor en `impuestosAdicionales` se limpia a 0 con un warning. No recalcula nada; solo corrige errores de lectura evidentes.
 | **VCT** | 85.037.900-9 | CAJ multiplica × packSize; BOT usa cantidad directa | — | Servicio logístico se extrae como flete y distribuye proporcionalmente | Imagen/PDF |
 | **IDEAL** | 82.623.500-4 | — | — | — | Imagen/PDF |
 | **CCU** | 99.554.560-8 | Pack desde nombre (ej: 6PFX4) | 4-pasos: IA pie → grado alcoh. → keywords BD → fallback 18% | Cálculo de flete desde PTU (precioBrutoUnitario) | Imagen/PDF |
