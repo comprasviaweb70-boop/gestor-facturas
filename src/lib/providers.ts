@@ -44,6 +44,20 @@ export const KNOWN_IMAGE_PROVIDERS: KnownProvider[] = [
     rutNormalized: '764244672',
     documentPromptKey: 'bundor',
   },
+  {
+    id: 'zapata',
+    name: 'Zapata',
+    rut: '79.576.940-4',
+    rutNormalized: '795769404',
+    documentPromptKey: 'zapata',
+  },
+  {
+    id: 'mad-charlies',
+    name: 'MAD CHARLIES',
+    rut: '77.659.607-8',
+    rutNormalized: '776596078',
+    documentPromptKey: 'mad-charlies',
+  },
 ];
 
 export function getProviderByRut(rut?: string): KnownProvider | undefined {

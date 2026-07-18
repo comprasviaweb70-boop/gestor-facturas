@@ -1,9 +1,14 @@
 import { getProviderByKey } from '@/lib/providers';
 
-type ProviderPromptKey = 'coca-cola-embonor' | 'vct' | 'ideal' | 'ccu' | 'bundor';
+type ProviderPromptKey = 'coca-cola-embonor' | 'vct' | 'ideal' | 'ccu' | 'bundor' | 'zapata' | 'mad-charlies';
 
 const PROVIDER_IMAGE_PROMPTS: Record<ProviderPromptKey, string> = {
   'coca-cola-embonor': `Actúa como un experto en facturación electrónica chilena. Analiza esta factura de Coca-Cola Embonor y extrae exclusivamente los datos en formato JSON.
+
+IMPORTANTE — Orden visual exacto de las columnas monetarias en cada fila de producto (de izquierda a derecha):
+Neto Total | Flete Total | I.V.A. | Adicional (I.A.B.A.)
+
+La columna I.V.A. está SIEMPRE ubicada entre "Flete Total" (a su izquierda) y "Adicional" (a su derecha). DEBES ignorarla por completo.
 
 Formato requerido:
 {
@@ -27,14 +32,16 @@ Formato requerido:
 
 Reglas críticas:
 - Lee TODOS los productos de la tabla. Ignora líneas de garantía, depósito de envases, cuotas o totales.
-- La columna "I.V.A." debe IGNORARSE por completo; no se ingresa a Bsale.
+- La columna "I.V.A." debe IGNORARSE por completo; no se ingresa a Bsale. NUNCA copies su valor en ningún campo.
 - cantidad: devuélvela como string con el formato original (ej: "2/0"). NO la multipliques.
 - subtotalNeto, impuestosAdicionales y fleteTotal: devuélvelos SIEMPRE como números enteros sin puntos ni comas (ej. 4299, no "4.299"). En Chile el punto es separador de miles; ignóralo. Si no hay valor, usa 0.
 - subtotalNeto: usa el valor de "Neto Total" (ya incluye descuentos de la columna %Desc).
-- impuestosAdicionales: usa ÚNICAMENTE el valor de la columna "Adicional" (I.A.B.A.). Si esa celda está vacía o en blanco, el valor debe ser exactamente 0. NUNCA uses el valor de la columna "I.V.A." ni ninguna otra columna como reemplazo.
-- fleteTotal: usa el valor de "Flete Total".
+- fleteTotal: EXCLUSIVAMENTE el valor de la columna "Flete Total", que está INMEDIATAMENTE a la izquierda de la columna "I.V.A.". Si ves un valor que es aproximadamente el 19% del Neto Total, estás leyendo la columna I.V.A. — corrige y toma el valor que está justo a su izquierda.
+- impuestosAdicionales: EXCLUSIVAMENTE el valor de la columna "Adicional" (I.A.B.A.), que está INMEDIATAMENTE a la derecha de la columna "I.V.A.". Si esa celda está vacía o en blanco, el valor debe ser exactamente 0. NUNCA uses el valor de la columna "I.V.A." ni ninguna otra columna como reemplazo.
 - codigo: si no hay código, usa "S/C".
+- Antes de responder, verifica fila por fila que fleteTotal NO coincida con el valor de la columna I.V.A. y que impuestosAdicionales NO coincida con el valor de I.V.A.
 - Responde ÚNICAMENTE con el objeto JSON válido.`,
+
   'vct': `Actúa como un experto en facturación electrónica chilena. Analiza esta factura de VCT (Comercial Peumo Ltda., R.U.T. 85.037.900-9) y extrae exclusivamente los datos en formato JSON.
 
 Formato requerido:
@@ -178,6 +185,71 @@ Reglas críticas:
 - precioUnitario y precioBrutoUnitario: deja 0 (se calcularán posteriormente).
 - impuestosAdicionales: inicialmente 0; se calculará posteriormente según clasificación fiscal.
 - fleteTotal: inicialmente 0; si existe una línea de "FLETE MERCADERIA" o similar, inclúyela como ítem normal (la post-proceso la manejará).
+- codigo: si no hay código visible, usa "S/C".
+- Responde ÚNICAMENTE con el objeto JSON válido.`,
+
+  'zapata': `Actúa como un experto en facturación electrónica chilena. Analiza esta factura de ZAPATA (R.U.T. 79.576.940-4) y extrae exclusivamente los datos en formato JSON.
+
+Formato requerido:
+{
+  "rutEmisor": "R.U.T. del emisor (79.576.940-4)",
+  "folio": "Número del folio de la factura",
+  "razonSocial": "Razón social del emisor",
+  "totalNetoFactura": "Subtotal neto del pie de factura (sin IVA; entero sin puntos ni comas)",
+  "items": [
+    {
+      "nombre": "Descripción del producto",
+      "codigo": "Código del producto",
+      "cantidad": "Cantidad",
+      "precioUnitario": "Precio neto unitario",
+      "precioBrutoUnitario": "Precio bruto unitario (con impuestos) si existe",
+      "subtotalNeto": "Subtotal neto de la línea (entero sin puntos ni comas)",
+      "impuestosAdicionales": 0,
+      "fleteTotal": 0,
+      "tasaImpuestoAdicional": "Tasa del impuesto adicional (ILA) si aparece en la factura (ej: 20.5% -> 0.205)"
+    }
+  ]
+}
+
+Reglas críticas:
+- Lee TODOS los productos de la tabla. Ignora líneas de totales, subtotales, garantía o depósito de envases.
+- precioUnitario: precio neto unitario (sin IVA ni impuestos adicionales).
+- precioBrutoUnitario: precio bruto unitario (con IVA e impuestos adicionales incluidos) si existe en la factura.
+- subtotalNeto: devuélvelo SIEMPRE como número entero sin puntos ni comas. En Chile el punto es separador de miles; ignóralo.
+- impuestosAdicionales: inicialmente 0; se calculará posteriormente según la tasa.
+- fleteTotal: inicialmente 0; se calculará posteriormente a partir del precio bruto.
+- tasaImpuestoAdicional: expresa la tasa como decimal (0.205, 0.315, 0.10, etc.). Si no aparece, usa 0.
+- codigo: si no hay código visible, usa "S/C".
+- Responde ÚNICAMENTE con el objeto JSON válido.`,
+
+  'mad-charlies': `Actúa como un experto en facturación electrónica chilena. Analiza esta factura de MAD CHARLIES (R.U.T. 77.659.607-8) y extrae exclusivamente los datos en formato JSON.
+
+Formato requerido:
+{
+  "rutEmisor": "R.U.T. del emisor (77.659.607-8)",
+  "folio": "Número del folio de la factura",
+  "razonSocial": "Razón social del emisor",
+  "totalNetoFactura": "Subtotal neto del pie de factura (sin IVA; entero sin puntos ni comas)",
+  "items": [
+    {
+      "nombre": "Descripción del producto",
+      "codigo": "Código del producto",
+      "cantidad": "Cantidad",
+      "precioUnitario": 0,
+      "precioBrutoUnitario": 0,
+      "subtotalNeto": "Subtotal neto de la línea (entero sin puntos ni comas)",
+      "impuestosAdicionales": 0,
+      "fleteTotal": 0
+    }
+  ]
+}
+
+Reglas críticas:
+- Lee TODOS los productos de la tabla. Ignora líneas de totales, subtotales, garantía o depósito de envases.
+- Si existe una línea de "DELIVERY", "FLETE" o "DELIVERY MANUAL", inclúyela como ítem normal (la post-proceso la manejará).
+- subtotalNeto: devuélvelo SIEMPRE como número entero sin puntos ni comas. En Chile el punto es separador de miles; ignóralo.
+- impuestosAdicionales: inicialmente 0; se calculará posteriormente según clasificación fiscal (10% sin alcohol, 20.5% con alcohol).
+- fleteTotal: inicialmente 0; si hay línea de delivery/flete, la post-proceso lo distribuirá.
 - codigo: si no hay código visible, usa "S/C".
 - Responde ÚNICAMENTE con el objeto JSON válido.`,
 };
