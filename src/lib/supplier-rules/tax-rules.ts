@@ -130,12 +130,6 @@ export const ccuTaxRule: SupplierRule = {
         console.log(`[CCU Tax P2-Alcohol] "${item.nombre}" | tasa por grado alcohólico: ${tasa}`);
       }
 
-      // === Confirmación P1+P2: IA=0% y sin grado alcohólico → ILA=0 (evita falsos positivos por keywords) ===
-      if (tasa === null && tasaIA === 0 && tasaAlcohol === 0) {
-        tasa = 0;
-        console.log(`[CCU Tax P1+P2 confirm] "${item.nombre}" | IA=0 + sin alcohol → ILA=0`);
-      }
-
       // === Prioridad 3: Palabras clave en taxRates (BD) + reglas hardcodeadas ===
       if (tasa === null) {
         // 3a: Buscar en taxRates desde BD
