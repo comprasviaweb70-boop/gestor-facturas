@@ -121,7 +121,8 @@ Formato requerido:
       "precioBrutoUnitario": "Valor de la columna 'Total x Unidad' (PTU - Precio Total por Unidad, con 1 decimal)",
       "subtotalNeto": "Valor de la columna 'Valor' (neto post-descuento comercial, antes de IVA e IABA; entero sin puntos ni comas)",
       "impuestosAdicionales": 0,
-      "fleteTotal": 0
+      "fleteTotal": 0,
+      "tasaImpuestoAdicional": "Tasa del impuesto adicional (ILA) obtenida de la columna 'GRADO ALCOH' o del pie de factura. Ver reglas abajo."
     }
   ]
 }
@@ -135,6 +136,12 @@ Reglas críticas:
 - nombre: copia EXACTAMENTE toda la descripción del producto. Incluir SIEMPRE el tipo de pack (ej: 6PF, 12PF, 6PFX4, 1600X6, etc.). Esto es CRÍTICO para el cálculo posterior de unidades.
 - impuestosAdicionales: inicialmente 0; el cálculo se hará posteriormente según clasificación fiscal.
 - fleteTotal: inicialmente 0; el cálculo se hará posteriormente basado en PTU.
+- tasaImpuestoAdicional: Busca la columna 'GRADO ALCOH' (o 'GRADO ALC.', 'G.A.', '°ALC') en la factura. Toma el valor numérico del grado alcohólico (ej: 13, 5.5, 40).
+  * Si el grado es < 20 → tasa es 0.205 (vino/cerveza 20.5%)
+  * Si el grado es >= 20 → tasa es 0.315 (destilado/pisco 31.5%)
+  * Si la columna existe pero está vacía o dice '0' → tasa es 0 (sin ILA, ej: agua/jugo)
+  * Si NO existe la columna GRADO ALCOH en la factura → tasa es 0
+  * Siempre expresa la tasa como decimal (0.205, 0.315, 0).
 - codigo: si no hay código visible, usa "S/C".
 - Todos los montos deben ser números enteros sin puntos ni comas; en Chile el punto es separador de miles.
 - Responde ÚNICAMENTE con el objeto JSON válido.`,
