@@ -114,9 +114,9 @@ Formato requerido:
   "totalNetoFactura": "Subtotal neto del pie de factura (sin IVA; entero sin puntos ni comas)",
   "items": [
     {
-      "nombre": "Descripción del producto",
+      "nombre": "Descripción COMPLETA del producto tal como aparece en la factura (conservar todo: códigos, sufijos, medidas, etc.)",
       "codigo": "Código del producto (columna Código)",
-      "cantidad": "Cantidad tal como aparece en la columna Cantidad (valor visual, sin expansión de packs)",
+      "cantidadVisual": "Solo el número visual de la columna Cantidad (ej: 1, 2, 3...). NO calcular ni multiplicar.",
       "precioUnitario": 0,
       "precioBrutoUnitario": "Valor de la columna 'Total x Unidad' (PTU - Precio Total por Unidad, con 1 decimal)",
       "subtotalNeto": "Valor de la columna 'Valor' (neto post-descuento comercial, antes de IVA e IABA; entero sin puntos ni comas)",
@@ -131,7 +131,8 @@ Reglas críticas:
 - EXCLUYE productos con código 9999 ("Flete de Mercaderías" - contabilidad interna CCU).
 - subtotalNeto: extrae el valor de la columna 'Valor' (NO de 'Precio Unit'), es el neto post-descuento comercial antes de IVA e IABA.
 - precioBrutoUnitario: extrae el valor de la columna 'Total x Unidad' (PTU - Precio Total por Unidad, con 1 decimal).
-- cantidad: devuelve el valor visual de la columna Cantidad (sin expandir packs).
+- cantidadVisual: devuelve SOLO el número que ves en la columna Cantidad. No lo modifiques ni calcules nada.
+- nombre: copia EXACTAMENTE toda la descripción del producto. Incluir SIEMPRE el tipo de pack (ej: 6PF, 12PF, 6PFX4, 1600X6, etc.). Esto es CRÍTICO para el cálculo posterior de unidades.
 - impuestosAdicionales: inicialmente 0; el cálculo se hará posteriormente según clasificación fiscal.
 - fleteTotal: inicialmente 0; el cálculo se hará posteriormente basado en PTU.
 - codigo: si no hay código visible, usa "S/C".

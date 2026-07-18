@@ -8,6 +8,10 @@ function normalizeItems(items: any[], sourceFormat: 'xml' | 'pdf' | 'image'): In
   const parseAmount = sourceFormat === 'xml' ? parseSpanishNumber : parseChileanImageAmount;
 
   return items.map((item: any) => {
+    // Mapear cantidadVisual a cantidad si viene del prompt CCU actualizado
+    if (!item.cantidad && item.cantidadVisual !== undefined) {
+      item.cantidad = item.cantidadVisual;
+    }
     if (typeof item.cantidad === 'string') {
       item.cantidad = parseFloat(item.cantidad.replace(/,/g, '.'));
     }
