@@ -133,47 +133,73 @@ Reglas críticas:
   
   'ccu': `Actúa como un experto en facturación electrónica chilena. Analiza esta factura de COMERCIAL CCU S.A. (R.U.T. 99.554.560-8) y extrae exclusivamente los datos en formato JSON.
 
-Formato requerido:
-{
-  "rutEmisor": "R.U.T. del emisor (99.554.560-8)",
-  "folio": "Número del folio de la factura",
-  "razonSocial": "Razón social del emisor",
-  "totalNetoFactura": "Subtotal neto del pie de factura (sin IVA; entero sin puntos ni comas)",
-  "items": [
-    {
-      "nombre": "Descripción COMPLETA del producto tal como aparece en la factura (conservar todo: códigos, sufijos, medidas, etc.)",
-      "codigo": "Código del producto (columna Código)",
-      "cantidadVisual": "Solo el número visual de la columna Cantidad (ej: 1, 2, 3...). NO calcular ni multiplicar.",
-      "precioUnitario": 0,
-      "precioBrutoUnitario": "Valor de la columna 'Total x Unidad' (PTU - Precio Total por Unidad, con 1 decimal)",
-      "subtotalNeto": "Valor de la columna 'Valor' (neto post-descuento comercial, antes de IVA e IABA; entero sin puntos ni comas)",
-      "impuestosAdicionales": 0,
-      "fleteTotal": 0,
-      "tasaImpuestoAdicional": "Tasa del impuesto adicional (ILA) obtenida de la columna 'GRADO ALCOH' o del pie de factura. Ver reglas abajo."
-    }
-  ]
-}
+IMPORTANTE: Si el documento contiene MÚLTIPLES facturas (varias páginas con diferentes folios), devuelve un ARRAY de objetos JSON, uno por cada factura. Si solo hay una factura, devuelve un array con un solo elemento.
+
+Formato requerido (array de facturas):
+[
+  {
+    "rutEmisor": "99.554.560-8",
+    "folio": "Número del folio de la factura",
+    "razonSocial": "Razón social del emisor",
+    "totalNetoFactura": "Subtotal neto del pie de factura (sin IVA; entero sin puntos ni comas)",
+    "items": [
+      {
+        "nombre": "Descripción COMPLETA del producto tal como aparece en la factura (conservar todo: códigos, sufijos, medidas, pack)",
+        "codigo": "Código del producto (columna Código)",
+        "cantidadVisual": "Solo el número visual de la columna Cantidad (ej: 1, 2, 3...). NO calcular ni multiplicar.",
+        "precioUnitario": 0,
+        "precioBrutoUnitario": "Valor de la columna 'Total x Unidad' (PTU - Precio Total por Unidad, con 1 decimal)",
+        "subtotalNeto": "Valor de la columna 'Valor' (neto post-descuento comercial, antes de IVA e IABA; entero sin puntos ni comas)",
+        "impuestosAdicionales": 0,
+        "fleteTotal": 0,
+        "tasaImpuestoAdicional": "Tasa del impuesto adicional (ILA) obtenida de la columna 'GRADO ALCOH' o del pie de factura. Ver reglas abajo."
+      }
+    ]
+  }
+]
+
+EJEMPLO de fila de CCU correctamente extraída:
+Fila visible en la factura:
+  Código: 10000123
+  Producto: GATO-NVO-CS-CB8-500CCX12-TR
+  Cantidad: 1
+  Total x Unidad: 5120.0
+  Valor: 5120
+  GRADO ALCOH: 13
+JSON resultante:
+  {
+    "nombre": "GATO-NVO-CS-CB8-500CCX12-TR",
+    "codigo": "10000123",
+    "cantidadVisual": 1,
+    "precioUnitario": 0,
+    "precioBrutoUnitario": 5120.0,
+    "subtotalNeto": 5120,
+    "impuestosAdicionales": 0,
+    "fleteTotal": 0,
+    "tasaImpuestoAdicional": 0.205
+  }
 
 Reglas críticas:
 - Lee TODOS los productos de la tabla. Ignora líneas de totales, subtotales, garantía o depósito de envases.
 - EXCLUYE productos con código 9999 ("Flete de Mercaderías" - contabilidad interna CCU).
+- IDENTIFICA cada factura separada en el documento. Cada factura tiene su propio folio, RUT y totales.
 - subtotalNeto: extrae el valor de la columna 'Valor' (NO de 'Precio Unit'), es el neto post-descuento comercial antes de IVA e IABA.
-- precioBrutoUnitario: extrae el valor de la columna 'Total x Unidad' (PTU - Precio Total por Unidad, con 1 decimal).
+- precioBrutoUnitario: extrae el valor de la columna 'Total x Unidad' (PTU - Precio Total por Unidad, con 1 decimal). Si la columna se ve como "5.120,0" o "5120,0", conviértela a 5120.0.
 - cantidadVisual: devuelve SOLO el número que ves en la columna Cantidad. No lo modifiques ni calcules nada.
-- nombre: copia EXACTAMENTE toda la descripción del producto. Incluir SIEMPRE el tipo de pack (ej: 6PF, 12PF, 6PFX4, 1600X6, etc.). Esto es CRÍTICO para el cálculo posterior de unidades.
+- nombre: copia EXACTAMENTE toda la descripción del producto. Incluir SIEMPRE el tipo de pack (ej: 6PF, 12PF, 6PFX4, 1600X6, 500CCX12, etc.). Esto es CRÍTICO para el cálculo posterior de unidades.
 - impuestosAdicionales: inicialmente 0; el cálculo se hará posteriormente según clasificación fiscal.
 - fleteTotal: inicialmente 0; el cálculo se hará posteriormente basado en PTU.
 - tasaImpuestoAdicional: Determínala en este orden:
-  1) PRIMERO: Busca en el PIE DE FACTURA la tasa de impuesto adicional (ILA/IABA). Suele aparecer como porcentaje (ej: 10%, 20.5%, 31.5%) junto al monto total del impuesto. Si la encuentras, conviértela a decimal (10% → 0.10, 20.5% → 0.205, 31.5% → 0.315).
-  2) SI NO aparece en el pie: Busca la columna 'GRADO ALCOH' (o 'GRADO ALC.', 'G.A.', '°ALC') en la tabla de productos. Toma el valor numérico del grado alcohólico (ej: 13, 5.5, 40).
-     * Si el grado es < 20 → tasa es 0.205 (vino/cerveza 20.5%)
+  1) PRIMERO: Busca en la COLUMNA 'GRADO ALCOH' (o 'GRADO ALC.', 'G.A.', '°ALC', 'GRADO') de la fila del producto. Toma el valor numérico del grado alcohólico (ej: 13, 5.5, 40).
+     * Si el grado es > 0 y < 20 → tasa es 0.205 (vino/cerveza 20.5%)
      * Si el grado es >= 20 → tasa es 0.315 (destilado/pisco 31.5%)
-     * Si la columna existe pero está vacía o dice '0' → tasa es 0 (sin ILA, ej: agua/jugo)
+     * Si la columna existe pero está vacía, dice '0', 'S/G' o 'S/A' → tasa es 0 (sin ILA, ej: agua/jugo)
+  2) SI NO existe la columna GRADO ALCOH: Busca en el PIE DE FACTURA la tasa de impuesto adicional (ILA/IABA). Suele aparecer como porcentaje (ej: 10%, 20.5%, 31.5%) junto al monto total del impuesto. Si la encuentras, conviértela a decimal.
   3) Si no hay tasa en el pie ni columna GRADO ALCOH → tasa es 0
   Siempre expresa la tasa como decimal (0.10, 0.205, 0.315, 0).
-  - codigo: si no hay código visible, usa "S/C".
-  - Todos los montos deben ser números enteros sin puntos ni comas; en Chile el punto es separador de miles.
-  - Responde ÚNICAMENTE con el objeto JSON válido.`,
+- codigo: si no hay código visible, usa "S/C".
+- Todos los montos deben ser números enteros sin puntos ni comas; en Chile el punto es separador de miles.
+- Responde ÚNICAMENTE con el array JSON válido.`,
 
   'bundor': `Actúa como un experto en facturación electrónica chilena. Analiza esta factura de CERVECERÍA BUNDOR SPA (R.U.T. 76.424.467-2) y extrae exclusivamente los datos en formato JSON.
 
