@@ -97,27 +97,28 @@ export async function POST(request: Request) {
     const provider = fileBase64 ? getProviderByRut(knownRut) : undefined;
     const docPromptOverride = fileBase64 ? getProviderImagePrompt(provider?.documentPromptKey) : undefined;
 
-    // 2. Extracción: CCU (imagen/PDF) usa Gemini primario por mejor resultado en layouts tabulares.
+    // 2. Extracción: CCU y Coca-Cola (imagen/PDF) usan Gemini primario por mejor resultado en layouts tabulares.
     // Resto de proveedores: Claude primario, Gemini fallback.
     // XML siempre: Claude primario, Gemini fallback.
-    const isCcuImage = fileBase64 && provider?.documentPromptKey === 'ccu';
+    const geminiPrimaryProviders = ['ccu', 'coca-cola-embonor'];
+    const isGeminiPrimaryImage = fileBase64 && provider?.documentPromptKey && geminiPrimaryProviders.includes(provider.documentPromptKey);
     let extractionResult;
     let extractorUsed: 'claude' | 'gemini' = 'claude';
     let extractionWarning: string | undefined;
 
-    if (isCcuImage) {
-      // CCU (PDF/imagen): Gemini primario, Claude fallback
+    if (isGeminiPrimaryImage) {
+      // CCU / Coca-Cola (PDF/imagen): Gemini primario, Claude fallback
       try {
         extractionResult = await extractWithGemini({ xmlContent, fileBase64, fileType, docPromptOverride });
         extractorUsed = 'gemini';
       } catch (geminiErr: any) {
-        console.warn('Gemini falló para CCU, intentando con Claude:', geminiErr.message);
+        console.warn(`Gemini falló para ${provider?.documentPromptKey}, intentando con Claude:`, geminiErr.message);
         try {
           extractionResult = await extractWithClaude({ xmlContent, fileBase64, fileType, docPromptOverride });
         } catch (claudeErr: any) {
           const preview = (claudeErr.message || '').substring(0, 300);
           return NextResponse.json({
-            error: `Error al procesar factura CCU (Gemini y Claude fallaron): ${preview}...`,
+            error: `Error al procesar factura ${provider?.documentPromptKey} (Gemini y Claude fallaron): ${preview}...`,
           }, { status: 500 });
         }
       }
