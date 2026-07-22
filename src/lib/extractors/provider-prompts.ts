@@ -1,6 +1,6 @@
 import { getProviderByKey } from '@/lib/providers';
 
-type ProviderPromptKey = 'coca-cola-embonor' | 'vct' | 'ideal' | 'ccu' | 'bundor' | 'zapata' | 'mad-charlies';
+type ProviderPromptKey = 'coca-cola-embonor' | 'vct' | 'ideal' | 'ccu' | 'bundor' | 'zapata' | 'mad-charlies' | 'norkoshe';
 
 const PROVIDER_IMAGE_PROMPTS: Record<ProviderPromptKey, string> = {
   'coca-cola-embonor': `Actúa como un experto en facturación electrónica chilena. Analiza esta factura de Coca-Cola Embonor y extrae exclusivamente los datos en formato JSON.
@@ -270,6 +270,37 @@ Reglas críticas:
 - subtotalNeto: devuélvelo SIEMPRE como número entero sin puntos ni comas. En Chile el punto es separador de miles; ignóralo.
 - impuestosAdicionales: inicialmente 0; se calculará posteriormente según clasificación fiscal (10% sin alcohol, 20.5% con alcohol).
 - fleteTotal: inicialmente 0; si hay línea de delivery/flete, la post-proceso lo distribuirá.
+- codigo: si no hay código visible, usa "S/C".
+- Responde ÚNICAMENTE con el objeto JSON válido.`,
+
+  'norkoshe': `Actúa como un experto en facturación electrónica chilena. Analiza esta factura de NORKOSHE (R.U.T. 76.484.106-8) y extrae exclusivamente los datos en formato JSON.
+
+Formato requerido:
+{
+  "rutEmisor": "R.U.T. del emisor (76.484.106-8)",
+  "folio": "Número del folio de la factura",
+  "razonSocial": "Razón social del emisor",
+  "totalNetoFactura": "Subtotal neto del pie de factura (sin IVA; entero sin puntos ni comas)",
+  "items": [
+    {
+      "nombre": "Descripción del producto",
+      "codigo": "Código del producto",
+      "cantidad": "Cantidad",
+      "precioUnitario": 0,
+      "precioBrutoUnitario": 0,
+      "subtotalNeto": "Subtotal neto de la línea (entero sin puntos ni comas)",
+      "impuestosAdicionales": 0,
+      "fleteTotal": 0
+    }
+  ]
+}
+
+Reglas críticas:
+- Lee TODOS los productos de la tabla. Ignora líneas de totales, subtotales, garantía o depósito de envases.
+- cantidad: número EXACTO de la columna Cantidad.
+- subtotalNeto: devuélvelo SIEMPRE como número entero sin puntos ni comas. En Chile el punto es separador de miles; ignóralo. Si no hay valor, usa 0.
+- impuestosAdicionales: inicialmente 0; se calculará posteriormente según clasificación fiscal.
+- fleteTotal: inicialmente 0; se calculará posteriormente si aplica.
 - codigo: si no hay código visible, usa "S/C".
 - Responde ÚNICAMENTE con el objeto JSON válido.`,
 };

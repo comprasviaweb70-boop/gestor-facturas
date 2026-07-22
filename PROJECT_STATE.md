@@ -13,7 +13,7 @@ Sistema integral de gestión de facturas electrónicas chilenas (DTE) y mapeo de
 - **Idioma de Comunicación**: Todo el código, UI y documentación interna está en español, incluyendo nombres de variables, comentarios y mensajes de usuario, dado que el usuario final y los proveedores son de Chile.
 - **Clasificación de Proveedores por Formato**: Los proveedores se dividen en dos categorías según el formato de entrada:
   - **Proveedores XML**: Hiperkor, DIMAK, BAT Chile (detectan RUT automáticamente; no requieren selector en carga manual).
-  - **Proveedores Imagen/PDF**: Coca-Cola Embonor, VCT, IDEAL, CCU, Bundor, Zapata, MAD CHARLIES (requieren selección explícita en el `UploadModule` para extraer con prompts específicos).
+  - **Proveedores Imagen/PDF**: Coca-Cola Embonor, VCT, IDEAL, CCU, Bundor, Zapata, MAD CHARLIES, NORKOSHE (requieren selección explícita en el `UploadModule` para extraer con prompts específicos).
 
 ## Progreso Actual
 - [x] Módulo de carga manual de facturas (XML, PDF, JPG, PNG) con drag & drop
@@ -31,7 +31,7 @@ Sistema integral de gestión de facturas electrónicas chilenas (DTE) y mapeo de
 - [x] Soporte para múltiples facturas en un solo archivo PDF/imagen
 - [x] Preferencias de extracción por proveedor (XML vs Visión/PDF)
 - [x] Ignorar facturas que no representan aumento de stock
-- [x] Registro de proveedores de imagen/PDF en selector: Coca-Cola, VCT, IDEAL, CCU, Bundor, Zapata, MAD CHARLIES
+- [x] Registro de proveedores de imagen/PDF en selector: Coca-Cola, VCT, IDEAL, CCU, Bundor, Zapata, MAD CHARLIES, NORKOSHE
 - [ ] Tests de integración con Bsale en producción
 - [ ] Dashboard de métricas de procesamiento
 - [ ] Autenticación de usuarios y roles
@@ -54,6 +54,7 @@ Sistema integral de gestión de facturas electrónicas chilenas (DTE) y mapeo de
 | **Bundor** | 76.424.467-2 | — | ILA según grado alcohólico; salta líneas de flete/delivery | Flete/delivery se extrae como ítem y distribuye proporcionalmente entre productos | Imagen/PDF |
 | **Zapata** | 79.576.940-4 | — | Flete oculto bruto con fórmula específica: `(Bruto - (Neto*(1+0.19+ILA)))/1.19` | — | Imagen/PDF |
 | **MAD CHARLIES** | 77.659.607-8 | — | ILA 10% (sin alcohol) / 20.5% (con alcohol) | Delivery/flete se distribuye proporcionalmente entre productos | Imagen/PDF |
+| **NORKOSHE** | 76.484.106-8 | — | — | — | Imagen/PDF |
 
 ## Hitos Alcanzados
 - Hito 1: Arquitectura de extracción dual (Claude + Gemini) con validación cruzada
