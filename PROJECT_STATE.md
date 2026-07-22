@@ -11,6 +11,7 @@ Sistema integral de gestión de facturas electrónicas chilenas (DTE) y mapeo de
 - **Pipeline de Reglas por Proveedor**: Se implementó un sistema de reglas por proveedor (`supplier-rules`) que permite aplicar multiplicadores de cantidad, tasas de impuestos adicionales (ILA) y post-procesamientos específicos sin alterar el código base.
 - **Cálculo de Costos Estandarizado**: La fórmula de PCU incluye explícitamente flete (`(subtotalNeto + impuestosAdicionales + fleteTotal) / cantidad`) y el PVU aplica margen + IVA (`pcu * (1 + margen/100) * 1.19`). Esta fórmula no debe ser modificada sin autorización del negocio.
 - **Idioma de Comunicación**: Todo el código, UI y documentación interna está en español, incluyendo nombres de variables, comentarios y mensajes de usuario, dado que el usuario final y los proveedores son de Chile.
+- **Flujo Git Automatizado**: Al finalizar cada tarea con cambios en el código, la IA debe hacer automáticamente `commit + push a origin main` para que Vercel despliegue los cambios. No se requiere que el usuario lo solicite.
 - **Clasificación de Proveedores por Formato**: Los proveedores se dividen en dos categorías según el formato de entrada:
   - **Proveedores XML**: Hiperkor, DIMAK, BAT Chile (detectan RUT automáticamente; no requieren selector en carga manual).
   - **Proveedores Imagen/PDF**: Coca-Cola Embonor, VCT, IDEAL, CCU, Bundor, Zapata, MAD CHARLIES, NORKOSHE (requieren selección explícita en el `UploadModule` para extraer con prompts específicos).
